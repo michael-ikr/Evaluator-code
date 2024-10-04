@@ -59,6 +59,23 @@ class Point2D:
         Px = A.x + ratio * (B.x - A.x)
         Py = A.y + ratio * (B.y - A.y)
         return Point2D(Px, Py)
+    def is_above_or_below(self, A, B):
+        """
+        Determines if the current point (self) is above or below the line segment defined by points A and B.
+        Parameters:
+        A (Point2D): First endpoint of the line segment.
+        B (Point2D): Second endpoint of the line segment.
+        Returns:
+        bool: True if the current point (self) is above the line, False if it is below or on the line.
+        """
+        # Calculate the cross product of vectors AB and AC (where C is self)
+        cross_product = (B.x - A.x) * (self.y - A.y) - (B.y - A.y) * (self.x - A.x)
+        if cross_product > 0:
+            return True  # Current point (self) is above the line
+        elif cross_product < 0:
+            return False  # Current point (self) is below the line
+        else:
+            return None  # Current point (self) is on the line
 
 # Function to resize image with aspect ratio
 def ResizeWithAspectRatio(image, width=None, height=None, inter=cv2.INTER_AREA):
@@ -79,6 +96,7 @@ def store_finger_node_coords(id: int, cx: float, cy: float, finger_coords: dict)
     if id not in finger_coords:
         finger_coords[id] = []
     finger_coords[id].append((cx, cy))
+
 
 def find_intersection(p1, p2, p3, p4):
     # Line 1: passing through p1 and p2
@@ -206,7 +224,22 @@ def main():
         cv2.putText(image, txt, (image.shape[1] - 400, y_pos), cv2.FONT_HERSHEY_SIMPLEX, 1, (173,216,230), 2, cv2.LINE_AA)
         print(txt)
         y_pos += 50
+      # Create points for testing
+      A = Point2D(0, 0)
+      B = Point2D(4, 4)
 
+      # Points to test
+      point_above = Point2D(2, 3)    # Should be above the line
+      point_below = Point2D(2, 1)    # Should be below the line
+      point_on = Point2D(2, 2)       # Should be on the line
+
+      # Run tests
+      print(f"Point {point_above} is {'above' if point_above.is_above_or_below(A, B) else 'below' if point_above.is_above_or_below(A, B) is False else 'on'} the line.")
+      print(f"Point {point_below} is {'above' if point_below.is_above_or_below(A, B) else 'below' if point_below.is_above_or_below(A, B) is False else 'on'} the line.")
+      print(f"Point {point_on} is {'above' if point_on.is_above_or_below(A, B) else 'below' if point_on.is_above_or_below(A, B) is False else 'on'} the line.")
+
+      bow_coord_list = []
+      string_coord_list =[]
       YOLOresults = model(image)
       for result in YOLOresults:
         if intersection:
@@ -244,11 +277,14 @@ def main():
           thickness = -1       # Thickness -1 fills the circle, creating a dot
 
           #SHOWING DOTS
-          cv2.circle(image, (int(box_str_point_one.x), int(box_str_point_one.y)), radius, (255, 255, 255), thickness)
-          cv2.circle(image, (int(box_str_point_two.x), int(box_str_point_two.y)), radius, (255, 255, 255), thickness)
-          cv2.circle(image, (int(box_str_point_three.x), int(box_str_point_three.y)), radius, (255, 255, 255), thickness)
-          cv2.circle(image, (int(box_str_point_four.x), int(box_str_point_four.y)), radius, (255, 255, 255), thickness)
-
+          cv2.circle(image, (int(box_str_point_one.x), int(box_str_point_one.y)), radius, (255, 0, 0), thickness) # bottom left
+          cv2.circle(image, (int(box_str_point_two.x), int(box_str_point_two.y)), radius, (0, 0, 0), thickness) # bottom right
+          cv2.circle(image, (int(box_str_point_three.x), int(box_str_point_three.y)), radius, (0, 255, 0), thickness) # top right
+          cv2.circle(image, (int(box_str_point_four.x), int(box_str_point_four.y)), radius, (0, 0, 255), thickness) # top left
+          string_coord_list.append(box_str_point_one)
+          string_coord_list.append(box_str_point_two)
+          string_coord_list.append(box_str_point_three)
+          string_coord_list.append(box_str_point_four)
           # Define bottom left corners for each text line
           bottom_left_corner_text_one = (image.shape[1] - 370, 35 * 6 + 20)  # Adjusted to move higher
           bottom_left_corner_coord1 = (image.shape[1] - 370, 35 * 7 + 15)   # Adjusted to move higher
@@ -284,10 +320,15 @@ def main():
           box_bow_coord_three = Point2D(box_bow_coordinate_3[0].item(), box_bow_coordinate_3[1].item())
           box_bow_coord_four = Point2D(box_bow_coordinate_4[0].item(), box_bow_coordinate_4[1].item())
           # SHOWING DOTS
-          cv2.circle(image, (int(box_bow_coord_one.x), int(box_bow_coord_one.y)), radius, (0,0,0), thickness)
-          cv2.circle(image, (int(box_bow_coord_two.x), int(box_bow_coord_two.y)), radius, (0,0,256), thickness)
-          cv2.circle(image, (int(box_bow_coord_three.x), int(box_bow_coord_three.y)), radius, (0,256,0), thickness)
-          cv2.circle(image, (int(box_bow_coord_four.x), int(box_bow_coord_four.y)), radius, (256,0,0), thickness)
+          cv2.circle(image, (int(box_bow_coord_one.x), int(box_bow_coord_one.y)), radius, (73, 34, 124), thickness) # top-left
+          cv2.circle(image, (int(box_bow_coord_two.x), int(box_bow_coord_two.y)), radius, (73, 34, 124), thickness) # bottom - left
+          cv2.circle(image, (int(box_bow_coord_three.x), int(box_bow_coord_three.y)), radius, (73, 34, 124), thickness) # bottom - right
+          cv2.circle(image, (int(box_bow_coord_four.x), int(box_bow_coord_four.y)), radius, (73, 34, 124), thickness) # top - right
+
+          bow_coord_list.append(box_bow_coord_one)
+          bow_coord_list.append(box_bow_coord_two)
+          bow_coord_list.append(box_bow_coord_three)
+          bow_coord_list.append(box_bow_coord_four)
 
           # Prepare text for box one
           text_coord1 = f"Coord 1: ({box_bow_coord_one.x}, {box_bow_coord_one.y})"
@@ -311,9 +352,11 @@ def main():
           cv2.putText(image, text_coord4, top_right_corner_coord4_2, cv2.FONT_HERSHEY_SIMPLEX, .8, (73, 34, 124), 2)  # Reduced font size
 
           # CALCULATING Mid Points
-          P1 = Point2D.find_point_p1(box_bow_coord_one, box_bow_coord_three)
-          P2 = Point2D.find_point_p1(box_bow_coord_four, box_bow_coord_two)
 
+      if(len(bow_coord_list) == 4 and len(string_coord_list) == 4):
+         
+        P1 = Point2D.find_point_p1(bow_coord_list[0], bow_coord_list[1]) # left mid point
+        P2 = Point2D.find_point_p1(bow_coord_list[2], bow_coord_list[3]) # right mid point
 
       detections = sv.Detections.from_ultralytics(YOLOresults[0])
 
