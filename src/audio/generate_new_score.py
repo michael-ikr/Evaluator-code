@@ -372,10 +372,17 @@ class AudioAnalysis:
         #         new_score.append(incorrect_note)
         #     print(beat_status[i])
         new_score.show('musicxml')
-        new_score.write('mxl', 'josh_demo.mxl') # changed for demo
+        new_score.write('xml', 'brian_demo.xml') # changed for demo
         
         
 if __name__ == '__main__':
-    df = pd.read_csv('scale.csv')
+    df = pd.read_csv('src/audio/scale.csv')
     a = AudioAnalysis(df, 'cscale.xml')
-    print(a.compare_dataframe_by_time())
+    store = a.compare_dataframe_by_time()
+    # print(a.compare_dataframe_by_time())
+    a.generate_overlay_score()
+    
+    
+    
+# call generate_dataframe_by_time() which gives DF of errors
+# then, feed into generate_overlay_score()
