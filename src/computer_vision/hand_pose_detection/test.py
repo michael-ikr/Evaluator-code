@@ -22,7 +22,7 @@ GestureRecognizerOptions = mp.tasks.vision.GestureRecognizerOptions
 VisionRunningMode = mp.tasks.vision.RunningMode
 
 # gesture model path (set path to gesture_recognizer_custom.task)
-gesture_model = '/Users/Wpj11/Documents/GitHub/Evaluator-code/src/computer_vision/hand_pose_detection/3_category.task'
+gesture_model = '/Users/jacksonshields/IdeaProjects/Evaluator-code/src/computer_vision/hand_pose_detection/3_category.task'
 
 # A class that stores methods/data for 2d points on the screen
 
@@ -150,13 +150,13 @@ def store_finger_node_coords(id: int, cx: float, cy: float, finger_coords: dict)
 def main():
     # YOLOv8 model trained from Roboflow dataset
     # Used for bow and target area oriented bounding boxes
-    model = YOLO('/Users/Wpj11/Documents/GitHub/Evaluator-code/src/computer_vision/hand_pose_detection/bow_target.pt')  # Path to your model file
+    model = YOLO('/Users/jacksonshields/IdeaProjects/Evaluator-code/src/computer_vision/hand_pose_detection/bow_target.pt')  # Path to your model file
   
     # For webcam input:
     # model.overlap = 80
 
     #input video file
-    video_file_path = '/Users/Wpj11/Documents/GitHub/Evaluator-code/src/computer_vision/hand_pose_detection/Vertigo for Solo Cello - Cicely Parnas.mp4'
+    video_file_path = '/Users/jacksonshields/IdeaProjects/Evaluator-code/src/computer_vision/hand_pose_detection/Vertigo for Solo Cello - Cicely Parnas.mp4'
     cap = cv2.VideoCapture(video_file_path) # change argument to 0 for demo/camera input
 
     frame_count = 0
@@ -272,131 +272,265 @@ def main():
                         cv2.putText(image, txt, (image.shape[1] - 650, y_pos), cv2.FONT_HERSHEY_SIMPLEX, 2, (37,245,252), 4, cv2.LINE_AA)
                         print(txt)
 
+            def create_str_box(index):
+                coord_box_one = result.obb.xyxyxyxy[index]
+                round_coord_box_one = torch.round(coord_box_one)
+
+                box_str_coordinate_1 = round_coord_box_one[0]  # First coordinate (x1, y1)
+                box_str_coordinate_2 = round_coord_box_one[1]   # Second coordinate (x2, y2)
+                box_str_coordinate_3 = round_coord_box_one[2]   # Third coordinate (x3, y3)
+                box_str_coordinate_4 = round_coord_box_one[3]   # Fourth coordinate (x4, y4)
+
+                #create Point2D objects for each box coordinate
+                box_str_point_one = Point2D(box_str_coordinate_1[0].item(), box_str_coordinate_1[1].item())
+                box_str_point_two = Point2D(box_str_coordinate_2[0].item(), box_str_coordinate_2[1].item())
+                box_str_point_three = Point2D(box_str_coordinate_3[0].item(), box_str_coordinate_3[1].item())
+                box_str_point_four = Point2D(box_str_coordinate_4[0].item(), box_str_coordinate_4[1].item())
+
+                # Prepare text
+                text_one = "String OBB Coords:"
+                text_coord1 = f"Coord 1: ({box_str_point_one.x}, {box_str_point_one.y})"
+                text_coord2 = f"Coord 2: ({box_str_point_two.x}, {box_str_point_two.y})"
+                text_coord3 = f"Coord 3: ({box_str_point_three.x}, {box_str_point_three.y})"
+                text_coord4 = f"Coord 4: ({box_str_point_four.x}, {box_str_point_four.y})"
+
+
+                # Define the color and size of the dot
+                radius = 5           # Radius of the dot
+                thickness = -1       # Thickness -1 fills the circle, creating a dot
+
+                #SHOWING DOTS
+                cv2.circle(image, (int(box_str_point_one.x), int(box_str_point_one.y)), radius, (255, 0, 0), thickness) # bottom left
+                cv2.circle(image, (int(box_str_point_two.x), int(box_str_point_two.y)), radius, (0, 0, 0), thickness) # bottom right
+                cv2.circle(image, (int(box_str_point_three.x), int(box_str_point_three.y)), radius, (0, 255, 0), thickness) # top right
+                cv2.circle(image, (int(box_str_point_four.x), int(box_str_point_four.y)), radius, (0, 0, 255), thickness) # top left
+                string_coord_list.append(box_str_point_one)
+                string_coord_list.append(box_str_point_two)
+                string_coord_list.append(box_str_point_three)
+                string_coord_list.append(box_str_point_four)
+                # Define bottom left corners for each text line
+                bottom_left_corner_text_one = (image.shape[1] - 370, 35 * 6 + 20)  # Adjusted to move higher
+                bottom_left_corner_coord1 = (image.shape[1] - 370, 35 * 7 + 15)   # Adjusted to move higher
+                bottom_left_corner_coord2 = (image.shape[1] - 370, 35 * 8 + 10)    # Adjusted to move higher
+                bottom_left_corner_coord3 = (image.shape[1] - 370, 35 * 9 + 5)    # Adjusted to move higher
+                bottom_left_corner_coord4 = (image.shape[1] - 370, 35 * 10 + 0)    # Adjusted to move higher
+                # Put text on image for box one
+                cv2.putText(image, text_one, bottom_left_corner_text_one, cv2.FONT_HERSHEY_SIMPLEX, .8, (167, 52, 53), 2)
+                cv2.putText(image, text_coord1, bottom_left_corner_coord1, cv2.FONT_HERSHEY_SIMPLEX, .8, (167, 52, 53), 2)
+                cv2.putText(image, text_coord2, bottom_left_corner_coord2, cv2.FONT_HERSHEY_SIMPLEX, .8, (167, 52, 53), 2)
+                cv2.putText(image, text_coord3, bottom_left_corner_coord3, cv2.FONT_HERSHEY_SIMPLEX, .8, (167, 52, 53), 2)
+                cv2.putText(image, text_coord4, bottom_left_corner_coord4, cv2.FONT_HERSHEY_SIMPLEX, .8, (167, 52, 53), 2)
+
+            def create_bow_box(index):
+                coord_box_two = result.obb.xyxyxyxy[index]
+                round_coord_box_two = torch.round(coord_box_two)
+
+                box_bow_coordinate_1 = round_coord_box_two[0]  # First coordinate (x1, y1)
+                box_bow_coordinate_2 = round_coord_box_two[1]  # Second coordinate (x2, y2)
+                box_bow_coordinate_3 = round_coord_box_two[2]  # Third coordinate (x3, y3)
+                box_bow_coordinate_4 = round_coord_box_two[3]  # Fourth coordinate (x4, y4)
+
+                # Define the color and size of the dot
+                radius = 5           # Radius of the dot
+                thickness = -1       # Thickness -1 fills the circle, creating a dot
+                # Add the dot to the image at the specified coordinates
+                box_bow_coord_one = Point2D(box_bow_coordinate_1[0].item(), box_bow_coordinate_1[1].item())
+                box_bow_coord_two = Point2D(box_bow_coordinate_2[0].item(), box_bow_coordinate_2[1].item())
+                box_bow_coord_three = Point2D(box_bow_coordinate_3[0].item(), box_bow_coordinate_3[1].item())
+                box_bow_coord_four = Point2D(box_bow_coordinate_4[0].item(), box_bow_coordinate_4[1].item())
+                # SHOWING DOTS
+                cv2.circle(image, (int(box_bow_coord_one.x), int(box_bow_coord_one.y)), radius, (73, 34, 124), thickness) # top-left
+                cv2.circle(image, (int(box_bow_coord_two.x), int(box_bow_coord_two.y)), radius, (73, 34, 124), thickness) # bottom - left
+                cv2.circle(image, (int(box_bow_coord_three.x), int(box_bow_coord_three.y)), radius, (73, 34, 124), thickness) # bottom - right
+                cv2.circle(image, (int(box_bow_coord_four.x), int(box_bow_coord_four.y)), radius, (73, 34, 124), thickness) # top - right
+
+                bow_coord_list.append(box_bow_coord_one)
+                bow_coord_list.append(box_bow_coord_two)
+                bow_coord_list.append(box_bow_coord_three)
+                bow_coord_list.append(box_bow_coord_four)
+
+                # Prepare text for box one
+                text_coord1 = f"Coord 1: ({box_bow_coord_one.x}, {box_bow_coord_one.y})"
+                text_coord2 = f"Coord 2: ({box_bow_coord_two.x}, {box_bow_coord_two.y})"
+                text_coord3 = f"Coord 3: ({box_bow_coord_three.x}, {box_bow_coord_three.y})"
+                text_coord4 = f"Coord 4: ({box_bow_coord_four.x}, {box_bow_coord_four.y})"
+
+                text_offset = 35  # increased spacing between lines
+                top_right_corner_text_two = (image.shape[1] - 370, text_offset + 20) # Adjusted to move down and left
+                top_right_corner_coord1_2 = (image.shape[1] - 370, text_offset * 2 + 15) # Adjusted to move down and left
+                top_right_corner_coord2_2 = (image.shape[1] - 370, text_offset * 3 + 10) # Adjusted to move down and left
+                top_right_corner_coord3_2 = (image.shape[1] - 370, text_offset * 4 + 5) # Adjusted to move down and left
+                top_right_corner_coord4_2 = (image.shape[1] - 370, text_offset * 5 + 0) # Adjusted to move down and left
+
+                # Put text on image for box two
+                text_two = "Bow OBB Coords:"
+                cv2.putText(image, text_two, top_right_corner_text_two, cv2.FONT_HERSHEY_SIMPLEX, .8, (255, 255, 255), 2)  # Reduced font size, previous color (73, 34, 124)
+                cv2.putText(image, text_coord1, top_right_corner_coord1_2, cv2.FONT_HERSHEY_SIMPLEX, .8, (255, 255, 255), 2)  # Reduced font size
+                cv2.putText(image, text_coord2, top_right_corner_coord2_2, cv2.FONT_HERSHEY_SIMPLEX, .8, (255, 255, 255), 2)  # Reduced font size
+                cv2.putText(image, text_coord3, top_right_corner_coord3_2, cv2.FONT_HERSHEY_SIMPLEX, .8, (255, 255, 255), 2)  # Reduced font size
+                cv2.putText(image, text_coord4, top_right_corner_coord4_2, cv2.FONT_HERSHEY_SIMPLEX, .8, (255, 255, 255), 2)  # Reduced font size
+
+            def check_bow_angle():
+                text_offset = 35  # increased spacing between lines
+                bow_too_high = (image.shape[1] - 370, text_offset * 11 + 0) # Adjusted to move down and left
+                bow_angle = (0, text_offset * 11 + 0) # Adjusted to move down and left
+                if(len(bow_coord_list) == 4 and len(string_coord_list) == 4):
+
+                    P1 = Point2D.find_point_p1(bow_coord_list[0], bow_coord_list[1]) # left mid point
+                    P2 = Point2D.find_point_p1(bow_coord_list[2], bow_coord_list[3]) # right mid point
+                    int1 = Point2D.find_intersection(P1,P2,string_coord_list[0],string_coord_list[2])
+                    int2 = Point2D.find_intersection(P1,P2,string_coord_list[1],string_coord_list[3])
+                    if Point2D.is_above_or_below(int1, string_coord_list[2], string_coord_list[3]) or Point2D.is_above_or_below(int2, string_coord_list[2], string_coord_list[3]):
+                        cv2.putText(image, "Bow Too High", bow_too_high, cv2.FONT_HERSHEY_SIMPLEX, .8, (255, 0, 0), 4)  # Reduced font size
+                    else:
+                        cv2.putText(image, "Bow Correctly placed", bow_too_high, cv2.FONT_HERSHEY_SIMPLEX, .8, (0, 255, 0), 4)  # Reduced font size
+                    # Evaluate correctness of bow angle based on how perpendicular bow is to fingerboard
+                    angle = Point2D.angle_between_lines(bow_coord_list[0], bow_coord_list[1], string_coord_list[2], string_coord_list[3])
+                    if angle > 75 and angle < 105:
+                        cv2.putText(image, "Bow Angle Correct", bow_angle, cv2.FONT_HERSHEY_SIMPLEX, .8, (0, 255, 0), 4)  # Reduced font size
+                    else:
+                        cv2.putText(image, "Bow Not Perpendicular to Fingerboard", bow_angle, cv2.FONT_HERSHEY_SIMPLEX, .8, (255, 0, 0), 4)  # Reduced font size
             bow_coord_list = []
-            string_coord_list =[]
+            string_coord_list = []
             YOLOresults = model(image)
             for result in YOLOresults:
-                if len(result.obb.xyxyxyxy) > 0:
-                    coord_box_one = result.obb.xyxyxyxy[0]
-                    round_coord_box_one = torch.round(coord_box_one)
+                # dict 0: Bow, 1: Strings
+                if (len(result.obb.cls) > 1):
+                    if (result.obb.cls[0] == 0):
+                        create_str_box(1)
+                        create_bow_box(0)
+                    else:
+                        create_str_box(0)
+                        create_bow_box(1)
+                    check_bow_angle()
 
-                    box_str_coordinate_1 = round_coord_box_one[0]  # First coordinate (x1, y1)
-                    box_str_coordinate_2 = round_coord_box_one[1]   # Second coordinate (x2, y2)
-                    box_str_coordinate_3 = round_coord_box_one[2]   # Third coordinate (x3, y3)
-                    box_str_coordinate_4 = round_coord_box_one[3]   # Fourth coordinate (x4, y4)
-
-                    #create Point2D objects for each box coordinate
-                    box_str_point_one = Point2D(box_str_coordinate_1[0].item(), box_str_coordinate_1[1].item())
-                    box_str_point_two = Point2D(box_str_coordinate_2[0].item(), box_str_coordinate_2[1].item())
-                    box_str_point_three = Point2D(box_str_coordinate_3[0].item(), box_str_coordinate_3[1].item())
-                    box_str_point_four = Point2D(box_str_coordinate_4[0].item(), box_str_coordinate_4[1].item())
-
-                    # Prepare text
-                    text_one = "String OBB Coords:"
-                    text_coord1 = f"Coord 1: ({box_str_point_one.x}, {box_str_point_one.y})"
-                    text_coord2 = f"Coord 2: ({box_str_point_two.x}, {box_str_point_two.y})"
-                    text_coord3 = f"Coord 3: ({box_str_point_three.x}, {box_str_point_three.y})"
-                    text_coord4 = f"Coord 4: ({box_str_point_four.x}, {box_str_point_four.y})"
+                if (len(result.obb.cls) == 1):
+                    if (result.obb.cls[0] == 0):
+                        create_bow_box(0)
+                    else:
+                        create_str_box(0)
 
 
-                    # Define the color and size of the dot
-                    radius = 5           # Radius of the dot
-                    thickness = -1       # Thickness -1 fills the circle, creating a dot
-
-                    #SHOWING DOTS
-                    cv2.circle(image, (int(box_str_point_one.x), int(box_str_point_one.y)), radius, (255, 0, 0), thickness) # bottom left
-                    cv2.circle(image, (int(box_str_point_two.x), int(box_str_point_two.y)), radius, (0, 0, 0), thickness) # bottom right
-                    cv2.circle(image, (int(box_str_point_three.x), int(box_str_point_three.y)), radius, (0, 255, 0), thickness) # top right
-                    cv2.circle(image, (int(box_str_point_four.x), int(box_str_point_four.y)), radius, (0, 0, 255), thickness) # top left
-                    string_coord_list.append(box_str_point_one)
-                    string_coord_list.append(box_str_point_two)
-                    string_coord_list.append(box_str_point_three)
-                    string_coord_list.append(box_str_point_four)
-                    # Define bottom left corners for each text line
-                    bottom_left_corner_text_one = (image.shape[1] - 370, 35 * 6 + 20)  # Adjusted to move higher
-                    bottom_left_corner_coord1 = (image.shape[1] - 370, 35 * 7 + 15)   # Adjusted to move higher
-                    bottom_left_corner_coord2 = (image.shape[1] - 370, 35 * 8 + 10)    # Adjusted to move higher
-                    bottom_left_corner_coord3 = (image.shape[1] - 370, 35 * 9 + 5)    # Adjusted to move higher
-                    bottom_left_corner_coord4 = (image.shape[1] - 370, 35 * 10 + 0)    # Adjusted to move higher
-                    # Put text on image for box one
-                    cv2.putText(image, text_one, bottom_left_corner_text_one, cv2.FONT_HERSHEY_SIMPLEX, .8, (167, 52, 53), 2)
-                    cv2.putText(image, text_coord1, bottom_left_corner_coord1, cv2.FONT_HERSHEY_SIMPLEX, .8, (167, 52, 53), 2)
-                    cv2.putText(image, text_coord2, bottom_left_corner_coord2, cv2.FONT_HERSHEY_SIMPLEX, .8, (167, 52, 53), 2)
-                    cv2.putText(image, text_coord3, bottom_left_corner_coord3, cv2.FONT_HERSHEY_SIMPLEX, .8, (167, 52, 53), 2)
-                    cv2.putText(image, text_coord4, bottom_left_corner_coord4, cv2.FONT_HERSHEY_SIMPLEX, .8, (167, 52, 53), 2)
+                    # coord_box_one = result.obb.xyxyxyxy[0]
+                    # round_coord_box_one = torch.round(coord_box_one)
+                    #
+                    # box_str_coordinate_1 = round_coord_box_one[0]  # First coordinate (x1, y1)
+                    # box_str_coordinate_2 = round_coord_box_one[1]   # Second coordinate (x2, y2)
+                    # box_str_coordinate_3 = round_coord_box_one[2]   # Third coordinate (x3, y3)
+                    # box_str_coordinate_4 = round_coord_box_one[3]   # Fourth coordinate (x4, y4)
+                    #
+                    # #create Point2D objects for each box coordinate
+                    # box_str_point_one = Point2D(box_str_coordinate_1[0].item(), box_str_coordinate_1[1].item())
+                    # box_str_point_two = Point2D(box_str_coordinate_2[0].item(), box_str_coordinate_2[1].item())
+                    # box_str_point_three = Point2D(box_str_coordinate_3[0].item(), box_str_coordinate_3[1].item())
+                    # box_str_point_four = Point2D(box_str_coordinate_4[0].item(), box_str_coordinate_4[1].item())
+                    #
+                    # # Prepare text
+                    # text_one = "String OBB Coords:"
+                    # text_coord1 = f"Coord 1: ({box_str_point_one.x}, {box_str_point_one.y})"
+                    # text_coord2 = f"Coord 2: ({box_str_point_two.x}, {box_str_point_two.y})"
+                    # text_coord3 = f"Coord 3: ({box_str_point_three.x}, {box_str_point_three.y})"
+                    # text_coord4 = f"Coord 4: ({box_str_point_four.x}, {box_str_point_four.y})"
+                    #
+                    #
+                    # # Define the color and size of the dot
+                    # radius = 5           # Radius of the dot
+                    # thickness = -1       # Thickness -1 fills the circle, creating a dot
+                    #
+                    # #SHOWING DOTS
+                    # cv2.circle(image, (int(box_str_point_one.x), int(box_str_point_one.y)), radius, (255, 0, 0), thickness) # bottom left
+                    # cv2.circle(image, (int(box_str_point_two.x), int(box_str_point_two.y)), radius, (0, 0, 0), thickness) # bottom right
+                    # cv2.circle(image, (int(box_str_point_three.x), int(box_str_point_three.y)), radius, (0, 255, 0), thickness) # top right
+                    # cv2.circle(image, (int(box_str_point_four.x), int(box_str_point_four.y)), radius, (0, 0, 255), thickness) # top left
+                    # string_coord_list.append(box_str_point_one)
+                    # string_coord_list.append(box_str_point_two)
+                    # string_coord_list.append(box_str_point_three)
+                    # string_coord_list.append(box_str_point_four)
+                    # # Define bottom left corners for each text line
+                    # bottom_left_corner_text_one = (image.shape[1] - 370, 35 * 6 + 20)  # Adjusted to move higher
+                    # bottom_left_corner_coord1 = (image.shape[1] - 370, 35 * 7 + 15)   # Adjusted to move higher
+                    # bottom_left_corner_coord2 = (image.shape[1] - 370, 35 * 8 + 10)    # Adjusted to move higher
+                    # bottom_left_corner_coord3 = (image.shape[1] - 370, 35 * 9 + 5)    # Adjusted to move higher
+                    # bottom_left_corner_coord4 = (image.shape[1] - 370, 35 * 10 + 0)    # Adjusted to move higher
+                    # # Put text on image for box one
+                    # cv2.putText(image, text_one, bottom_left_corner_text_one, cv2.FONT_HERSHEY_SIMPLEX, .8, (167, 52, 53), 2)
+                    # cv2.putText(image, text_coord1, bottom_left_corner_coord1, cv2.FONT_HERSHEY_SIMPLEX, .8, (167, 52, 53), 2)
+                    # cv2.putText(image, text_coord2, bottom_left_corner_coord2, cv2.FONT_HERSHEY_SIMPLEX, .8, (167, 52, 53), 2)
+                    # cv2.putText(image, text_coord3, bottom_left_corner_coord3, cv2.FONT_HERSHEY_SIMPLEX, .8, (167, 52, 53), 2)
+                    # cv2.putText(image, text_coord4, bottom_left_corner_coord4, cv2.FONT_HERSHEY_SIMPLEX, .8, (167, 52, 53), 2)
             
                     # CALCULATING P1
                     #pointOne = Point2D.find_point_p1(leftCoordOne, rightCoordTwo, ratio=0.7)
 
 
-                if len(result.obb.xyxyxyxy) >= 2:
-                    coord_box_two = result.obb.xyxyxyxy[1]
-                    round_coord_box_two = torch.round(coord_box_two)
-
-                    box_bow_coordinate_1 = round_coord_box_two[0]  # First coordinate (x1, y1)
-                    box_bow_coordinate_2 = round_coord_box_two[1]  # Second coordinate (x2, y2)
-                    box_bow_coordinate_3 = round_coord_box_two[2]  # Third coordinate (x3, y3)
-                    box_bow_coordinate_4 = round_coord_box_two[3]  # Fourth coordinate (x4, y4)
-
-                    # Define the color and size of the dot
-                    radius = 5           # Radius of the dot
-                    thickness = -1       # Thickness -1 fills the circle, creating a dot
-                    # Add the dot to the image at the specified coordinates
-                    box_bow_coord_one = Point2D(box_bow_coordinate_1[0].item(), box_bow_coordinate_1[1].item())
-                    box_bow_coord_two = Point2D(box_bow_coordinate_2[0].item(), box_bow_coordinate_2[1].item())
-                    box_bow_coord_three = Point2D(box_bow_coordinate_3[0].item(), box_bow_coordinate_3[1].item())
-                    box_bow_coord_four = Point2D(box_bow_coordinate_4[0].item(), box_bow_coordinate_4[1].item())
-                    # SHOWING DOTS
-                    cv2.circle(image, (int(box_bow_coord_one.x), int(box_bow_coord_one.y)), radius, (73, 34, 124), thickness) # top-left
-                    cv2.circle(image, (int(box_bow_coord_two.x), int(box_bow_coord_two.y)), radius, (73, 34, 124), thickness) # bottom - left
-                    cv2.circle(image, (int(box_bow_coord_three.x), int(box_bow_coord_three.y)), radius, (73, 34, 124), thickness) # bottom - right
-                    cv2.circle(image, (int(box_bow_coord_four.x), int(box_bow_coord_four.y)), radius, (73, 34, 124), thickness) # top - right
-
-                    bow_coord_list.append(box_bow_coord_one)
-                    bow_coord_list.append(box_bow_coord_two)
-                    bow_coord_list.append(box_bow_coord_three)
-                    bow_coord_list.append(box_bow_coord_four)
-
-                    # Prepare text for box one
-                    text_coord1 = f"Coord 1: ({box_bow_coord_one.x}, {box_bow_coord_one.y})"
-                    text_coord2 = f"Coord 2: ({box_bow_coord_two.x}, {box_bow_coord_two.y})"
-                    text_coord3 = f"Coord 3: ({box_bow_coord_three.x}, {box_bow_coord_three.y})"
-                    text_coord4 = f"Coord 4: ({box_bow_coord_four.x}, {box_bow_coord_four.y})"
-
-                    text_offset = 35  # increased spacing between lines
-                    top_right_corner_text_two = (image.shape[1] - 370, text_offset + 20) # Adjusted to move down and left
-                    top_right_corner_coord1_2 = (image.shape[1] - 370, text_offset * 2 + 15) # Adjusted to move down and left
-                    top_right_corner_coord2_2 = (image.shape[1] - 370, text_offset * 3 + 10) # Adjusted to move down and left
-                    top_right_corner_coord3_2 = (image.shape[1] - 370, text_offset * 4 + 5) # Adjusted to move down and left
-                    top_right_corner_coord4_2 = (image.shape[1] - 370, text_offset * 5 + 0) # Adjusted to move down and left
-
-                    # Put text on image for box two
-                    text_two = "Bow OBB Coords:"
-                    cv2.putText(image, text_two, top_right_corner_text_two, cv2.FONT_HERSHEY_SIMPLEX, .8, (255, 255, 255), 2)  # Reduced font size, previous color (73, 34, 124)
-                    cv2.putText(image, text_coord1, top_right_corner_coord1_2, cv2.FONT_HERSHEY_SIMPLEX, .8, (255, 255, 255), 2)  # Reduced font size
-                    cv2.putText(image, text_coord2, top_right_corner_coord2_2, cv2.FONT_HERSHEY_SIMPLEX, .8, (255, 255, 255), 2)  # Reduced font size
-                    cv2.putText(image, text_coord3, top_right_corner_coord3_2, cv2.FONT_HERSHEY_SIMPLEX, .8, (255, 255, 255), 2)  # Reduced font size
-                    cv2.putText(image, text_coord4, top_right_corner_coord4_2, cv2.FONT_HERSHEY_SIMPLEX, .8, (255, 255, 255), 2)  # Reduced font size
+                #if len(result.obb.xyxyxyxy) >= 2:
+                    # coord_box_two = result.obb.xyxyxyxy[1]
+                    # round_coord_box_two = torch.round(coord_box_two)
+                    #
+                    # box_bow_coordinate_1 = round_coord_box_two[0]  # First coordinate (x1, y1)
+                    # box_bow_coordinate_2 = round_coord_box_two[1]  # Second coordinate (x2, y2)
+                    # box_bow_coordinate_3 = round_coord_box_two[2]  # Third coordinate (x3, y3)
+                    # box_bow_coordinate_4 = round_coord_box_two[3]  # Fourth coordinate (x4, y4)
+                    #
+                    # # Define the color and size of the dot
+                    # radius = 5           # Radius of the dot
+                    # thickness = -1       # Thickness -1 fills the circle, creating a dot
+                    # # Add the dot to the image at the specified coordinates
+                    # box_bow_coord_one = Point2D(box_bow_coordinate_1[0].item(), box_bow_coordinate_1[1].item())
+                    # box_bow_coord_two = Point2D(box_bow_coordinate_2[0].item(), box_bow_coordinate_2[1].item())
+                    # box_bow_coord_three = Point2D(box_bow_coordinate_3[0].item(), box_bow_coordinate_3[1].item())
+                    # box_bow_coord_four = Point2D(box_bow_coordinate_4[0].item(), box_bow_coordinate_4[1].item())
+                    # # SHOWING DOTS
+                    # cv2.circle(image, (int(box_bow_coord_one.x), int(box_bow_coord_one.y)), radius, (73, 34, 124), thickness) # top-left
+                    # cv2.circle(image, (int(box_bow_coord_two.x), int(box_bow_coord_two.y)), radius, (73, 34, 124), thickness) # bottom - left
+                    # cv2.circle(image, (int(box_bow_coord_three.x), int(box_bow_coord_three.y)), radius, (73, 34, 124), thickness) # bottom - right
+                    # cv2.circle(image, (int(box_bow_coord_four.x), int(box_bow_coord_four.y)), radius, (73, 34, 124), thickness) # top - right
+                    #
+                    # bow_coord_list.append(box_bow_coord_one)
+                    # bow_coord_list.append(box_bow_coord_two)
+                    # bow_coord_list.append(box_bow_coord_three)
+                    # bow_coord_list.append(box_bow_coord_four)
+                    #
+                    # # Prepare text for box one
+                    # text_coord1 = f"Coord 1: ({box_bow_coord_one.x}, {box_bow_coord_one.y})"
+                    # text_coord2 = f"Coord 2: ({box_bow_coord_two.x}, {box_bow_coord_two.y})"
+                    # text_coord3 = f"Coord 3: ({box_bow_coord_three.x}, {box_bow_coord_three.y})"
+                    # text_coord4 = f"Coord 4: ({box_bow_coord_four.x}, {box_bow_coord_four.y})"
+                    #
+                    # text_offset = 35  # increased spacing between lines
+                    # top_right_corner_text_two = (image.shape[1] - 370, text_offset + 20) # Adjusted to move down and left
+                    # top_right_corner_coord1_2 = (image.shape[1] - 370, text_offset * 2 + 15) # Adjusted to move down and left
+                    # top_right_corner_coord2_2 = (image.shape[1] - 370, text_offset * 3 + 10) # Adjusted to move down and left
+                    # top_right_corner_coord3_2 = (image.shape[1] - 370, text_offset * 4 + 5) # Adjusted to move down and left
+                    # top_right_corner_coord4_2 = (image.shape[1] - 370, text_offset * 5 + 0) # Adjusted to move down and left
+                    #
+                    # # Put text on image for box two
+                    # text_two = "Bow OBB Coords:"
+                    # cv2.putText(image, text_two, top_right_corner_text_two, cv2.FONT_HERSHEY_SIMPLEX, .8, (255, 255, 255), 2)  # Reduced font size, previous color (73, 34, 124)
+                    # cv2.putText(image, text_coord1, top_right_corner_coord1_2, cv2.FONT_HERSHEY_SIMPLEX, .8, (255, 255, 255), 2)  # Reduced font size
+                    # cv2.putText(image, text_coord2, top_right_corner_coord2_2, cv2.FONT_HERSHEY_SIMPLEX, .8, (255, 255, 255), 2)  # Reduced font size
+                    # cv2.putText(image, text_coord3, top_right_corner_coord3_2, cv2.FONT_HERSHEY_SIMPLEX, .8, (255, 255, 255), 2)  # Reduced font size
+                    # cv2.putText(image, text_coord4, top_right_corner_coord4_2, cv2.FONT_HERSHEY_SIMPLEX, .8, (255, 255, 255), 2)  # Reduced font size
 
                     # Detect if bow too high or low
-                    bow_too_high = (image.shape[1] - 370, text_offset * 11 + 0) # Adjusted to move down and left
-                    bow_angle = (0, text_offset * 11 + 0) # Adjusted to move down and left
-                    if(len(bow_coord_list) == 4 and len(string_coord_list) == 4):
-            
-                        P1 = Point2D.find_point_p1(bow_coord_list[0], bow_coord_list[1]) # left mid point
-                        P2 = Point2D.find_point_p1(bow_coord_list[2], bow_coord_list[3]) # right mid point
-                        int1 = Point2D.find_intersection(P1,P2,box_str_point_one,box_str_point_three)
-                        int2 = Point2D.find_intersection(P1,P2,box_str_point_two,box_str_point_four)
-                        if Point2D.is_above_or_below(int1, box_str_point_three, box_str_point_four) or Point2D.is_above_or_below(int2, box_str_point_three, box_str_point_four):
-                            cv2.putText(image, "Bow Too High", bow_too_high, cv2.FONT_HERSHEY_SIMPLEX, .8, (255, 0, 0), 4)  # Reduced font size
-                        else:
-                            cv2.putText(image, "Bow Correctly placed", bow_too_high, cv2.FONT_HERSHEY_SIMPLEX, .8, (0, 255, 0), 4)  # Reduced font size
-                        # Evaluate correctness of bow angle based on how perpendicular bow is to fingerboard
-                        angle = Point2D.angle_between_lines(bow_coord_list[0], bow_coord_list[1], box_str_point_three, box_str_point_four)
-                        if angle > 75 and angle < 105:
-                            cv2.putText(image, "Bow Angle Correct", bow_angle, cv2.FONT_HERSHEY_SIMPLEX, .8, (0, 255, 0), 4)  # Reduced font size
-                        else:
-                            cv2.putText(image, "Bow Not Perpendicular to Fingerboard", bow_angle, cv2.FONT_HERSHEY_SIMPLEX, .8, (255, 0, 0), 4)  # Reduced font size
+                    # bow_too_high = (image.shape[1] - 370, text_offset * 11 + 0) # Adjusted to move down and left
+                    # bow_angle = (0, text_offset * 11 + 0) # Adjusted to move down and left
+                    # if(len(bow_coord_list) == 4 and len(string_coord_list) == 4):
+                    #
+                    #     P1 = Point2D.find_point_p1(bow_coord_list[0], bow_coord_list[1]) # left mid point
+                    #     P2 = Point2D.find_point_p1(bow_coord_list[2], bow_coord_list[3]) # right mid point
+                    #     int1 = Point2D.find_intersection(P1,P2,box_str_point_one,box_str_point_three)
+                    #     int2 = Point2D.find_intersection(P1,P2,box_str_point_two,box_str_point_four)
+                    #     if Point2D.is_above_or_below(int1, box_str_point_three, box_str_point_four) or Point2D.is_above_or_below(int2, box_str_point_three, box_str_point_four):
+                    #         cv2.putText(image, "Bow Too High", bow_too_high, cv2.FONT_HERSHEY_SIMPLEX, .8, (255, 0, 0), 4)  # Reduced font size
+                    #     else:
+                    #         cv2.putText(image, "Bow Correctly placed", bow_too_high, cv2.FONT_HERSHEY_SIMPLEX, .8, (0, 255, 0), 4)  # Reduced font size
+                    #     # Evaluate correctness of bow angle based on how perpendicular bow is to fingerboard
+                    #     angle = Point2D.angle_between_lines(bow_coord_list[0], bow_coord_list[1], box_str_point_three, box_str_point_four)
+                    #     if angle > 75 and angle < 105:
+                    #         cv2.putText(image, "Bow Angle Correct", bow_angle, cv2.FONT_HERSHEY_SIMPLEX, .8, (0, 255, 0), 4)  # Reduced font size
+                    #     else:
+                    #         cv2.putText(image, "Bow Not Perpendicular to Fingerboard", bow_angle, cv2.FONT_HERSHEY_SIMPLEX, .8, (255, 0, 0), 4)  # Reduced font size
 
             detections = sv.Detections.from_ultralytics(YOLOresults[0])
 
