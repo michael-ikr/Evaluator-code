@@ -271,7 +271,7 @@ def main():
                     else:
                         cv2.putText(image, txt, (image.shape[1] - 650, y_pos), cv2.FONT_HERSHEY_SIMPLEX, 2, (37,245,252), 4, cv2.LINE_AA)
                         print(txt)
-
+            # Takes in the index of result.obb.xyxyxyxy where the box is stored
             def create_str_box(index):
                 coord_box_one = result.obb.xyxyxyxy[index]
                 round_coord_box_one = torch.round(coord_box_one)
@@ -321,6 +321,7 @@ def main():
                 cv2.putText(image, text_coord3, bottom_left_corner_coord3, cv2.FONT_HERSHEY_SIMPLEX, .8, (167, 52, 53), 2)
                 cv2.putText(image, text_coord4, bottom_left_corner_coord4, cv2.FONT_HERSHEY_SIMPLEX, .8, (167, 52, 53), 2)
 
+            # Takes in the index of result.obb.xyxyxyxy where the box is stored
             def create_bow_box(index):
                 coord_box_two = result.obb.xyxyxyxy[index]
                 round_coord_box_two = torch.round(coord_box_two)
