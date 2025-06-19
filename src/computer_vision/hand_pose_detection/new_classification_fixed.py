@@ -229,8 +229,9 @@ class Classification:
         - None
         """
         self.bow_points = bow_box_xyxyxyxy
+        print('bow:', bow_box_xyxyxyxy)
         self.string_points = string_box_xyxyxyxy
-
+        print('string:', string_box_xyxyxyxy)
 
     def get_midline(self):
         """
@@ -239,11 +240,11 @@ class Classification:
         Returns:
         - (m, b): Slope and y-intercept of the midline in the form y = mx + b
         """
-
-        topRight = self.bow_points[0]
+        botLeft = self.bow_points[0]
         topLeft = self.bow_points[1]
-        botRight = self.bow_points[0]
-        botLeft = self.bow_points[1]
+        topRight = self.bow_points[2]
+        botRight = self.bow_points[3]
+        
 
         topMid = ((topRight[0] + botRight[0]) / 2, (topRight[1] + botRight[1]) / 2)
         botMid = ((botLeft[0] + topLeft[0]) / 2, (botLeft[1] + topLeft[1]) / 2)
@@ -254,10 +255,10 @@ class Classification:
         return (slope, yInt)
 
     def get_vertical_lines(self):
-        topRight = self.bow_points[0]
-        topLeft = self.bow_points[1]
-        botRight = self.bow_points[2]
-        botLeft = self.bow_points[3]
+        topLeft = self.string_points[0]
+        topRight = self.string_points[1]
+        botRight = self.string_points[2]
+        botLeft = self.string_points[3]
 
         # Avoid division by zero by checking x-difference
         dx_left = topLeft[0] - botLeft[0]
@@ -276,10 +277,12 @@ class Classification:
             rightSlope = (topRight[1] - botRight[1]) / dx_right
             rightYint = topRight[1] - rightSlope * topRight[0]
 
-        leftHT1 = topLeft[1]
-        leftHT2 = botLeft[1]
-        rightHT1 = topRight[1]
-        rightHT2 = botRight[1]
+        # [top-left, top-right, bottom-right, bottom-left]
+        # (m1, b1, ht1, hb1)
+        leftHT1 = self.string_points[0][1]
+        leftHT2 = self.string_points[3][1]
+        rightHT1 = self.string_points[1][1]
+        rightHT2 = self.string_points[2][1]
 
         return (leftSlope, leftYint, leftHT1, leftHT2), (rightSlope, rightYint, rightHT1, rightHT2)
 
@@ -295,6 +298,7 @@ class Classification:
         - If intersects both: calls bow_height_intersection(...)
         - If not: returns 1
         """
+        print('linear:', linear_line, '\nvertical:', vertical_lines)
     
         vertical_one = vertical_lines[0]
         vertical_two = vertical_lines[1]
@@ -307,8 +311,8 @@ class Classification:
         # get coordinates of intersection for first vertical
         x_1 = (vertical_one[1] - linear_line[1]) / (linear_line[0] - vertical_one[0])
         y_1 = vertical_one[0] * x_1 + vertical_one[1]
-        left = (vertical_one[3] - vertical_one[1]) / vertical_one[0]
-        right = (vertical_one[2] - vertical_one[1]) / vertical_one[0]
+        right = (vertical_one[3] - vertical_one[1]) / vertical_one[0]
+        left = (vertical_one[2] - vertical_one[1]) / vertical_one[0]
         top = vertical_one[2]
         bot = vertical_one[3]
 
@@ -326,8 +330,8 @@ class Classification:
         # get coordinates of intersection 
         x_2 = (vertical_two[1] - linear_line[1]) / (linear_line[0] - vertical_two[0])
         y_2 = vertical_two[0] * x_2 + vertical_two[1]
-        left = (vertical_two[3] - vertical_two[1]) / vertical_two[0]
-        right = (vertical_two[2] - vertical_two[1]) / vertical_two[0]
+        right = (vertical_two[3] - vertical_two[1]) / vertical_two[0]
+        left = (vertical_two[2] - vertical_two[1]) / vertical_two[0]
         top = vertical_two[2]
         bot = vertical_two[3]
 
@@ -352,37 +356,37 @@ class Classification:
         - 2: Intersection is near bottom (hb1 or hb2)
         - 0: Intersection is in middle
         """
-        bot_scaling_factor = .20
-        top_scaling_factor = .10
+        print('intersection:', intersection_points)
+        bot_scaling_factor = .25
+        top_scaling_factor = .20
 
         vertical_one = vertical_lines[0]
         vertical_two = vertical_lines[1]
 
-        # get lower and upper limit from vertical points
-        #bot_x1 = (vertical_one[3] - vertical_one[1]) / vertical_one[0] # x = (y - b) / m
         bot_y1 = vertical_one[3]
-        #bot_x2 = (vertical_two[3] - vertical_two[1]) / vertical_two[0]
         bot_y2 = vertical_two[3]
         
-        #top_x1 = (vertical_one[2] - vertical_one[1]) / vertical_one[0] # x = (y - b) / m
         top_y1 = vertical_one[2]
-        #top_x2 = (vertical_two[2] - vertical_two[1]) / vertical_two[0]
         top_y2 = vertical_two[2]
 
         # get avg height of vertical lines
         height = (top_y1 - bot_y1 + top_y2 - bot_y2 ) / 2
 
+        ## TOP AND BOTTOM CURRENTLY INTENTIONALLY FLIPPED
+
         # get lower limit by averaging bottom y value. Scaled by height of strings and bot_scaling_factor
-        min = ((bot_y1 + bot_y2) / 2) + height * bot_scaling_factor
+        min = ((bot_y1 + bot_y2) / 2) + height * top_scaling_factor
+        print('min:', min)
 
         if (intersection_points[0][1] <= min or intersection_points[1][1] <= min):
-            return 2
+            return 3
         
         # get upper limit by averaging top y value. Scaled by height of strings and bot_scaling_factor
-        max = ((top_y1 + top_y2) / 2) - height * top_scaling_factor
+        max = ((top_y1 + top_y2) / 2) - height * bot_scaling_factor
+        print('max:', max)
 
         if (intersection_points[0][1] >= max or intersection_points[1][1] >= max):
-            return 3
+            return 2
         
         return 0
 
@@ -451,8 +455,8 @@ class Classification:
 def main():
     # Open video
     # Load YOLOv11 OBB model
-    model = YOLO('best 2.pt')  # Replace with your actual model file    
-    cap = cv2.VideoCapture("bow too high-slow (3).mp4")
+    model = YOLO('/Users/jacksonshields/Documents/Evaluator/runs/obb/train4/weights/best.pt')  # Replace with your actual model file    
+    cap = cv2.VideoCapture("/Users/jacksonshields/Downloads/right posture.mp4")
 
     def resize_keep_aspect(image, target_width=1200):
         """Resize image while keeping aspect ratio"""
@@ -481,9 +485,9 @@ def main():
             if len(result.obb.xyxyxyxy) >= 2:
                 print("Both bow and string detected")
                 if len(result.obb.xyxyxyxy) == 2:
-                    if result.names[0] == result.names[1]:
+                    if result.obb.cls[0] == result.obb.cls[1]:
                         continue #if both are bow or both are string, do nothing
-                    if result.names[0] == "Bow": #first is bow, second is string
+                    if result.obb.cls[0] == 0: #first is bow, second is string
                         bow, string = torch.round(result.obb.xyxyxyxy)
                     else: #first is string, second is bow
                         string, bow = torch.round(result.obb.xyxyxyxy)
@@ -494,31 +498,32 @@ def main():
                     string_conf = 0.0
                     string_index = -1
                     for x in range(len(result.obb)):
-                        if result.names[0] == "Bow":
+                        if result.obb.cls[x] == 0:
                             if result.obb[x].conf > bow_conf:
                                 bow_conf = result.obb[x].conf
                                 bow_index = x
-                        elif result.names[0] == "String":
+                        elif result.obb.cls[x] == 1:
                             if result.obb[x].conf > string_conf:
                                 string_conf = result.obb[x].conf
                                 string_index = x
                     if bow_index != -1 and string_index != -1:
-                        bow = torch.round(result.obb[bow_index])
-                        string = torch.round(result.obb[string_index])
+                        bow = torch.round(result.obb[bow_index].xyxyxyxy)
+                        string = torch.round(result.obb[string_index].xyxyxyxy)
                     else:
                         continue
                 # bow_coords = [Point2D(bow[0][0].item(), bow[0][1].item()), Point2D(bow[1][0].item(), bow[1][1].item()), Point2D(bow[2][0].item(), bow[2][1].item()), Point2D(bow[3][0].item(), bow[3][1].item())]
                 # string_coords = [Point2D(string[0][0].item(), string[0][1].item()), Point2D(string[1][0].item(), string[1][1].item()), Point2D(string[2][0].item(), string[2][1].item()), Point2D(string[3][0].item(), string[3][1].item())]
                 
-                bow_coords = [tuple(bow[i].tolist()) for i in range(4)]
-                string_coords = [tuple(string[i].tolist()) for i in range(4)]
+                if (len(bow) == 4 and len(string) == 4):
+                    bow_coords = [tuple(bow[i].tolist()) for i in range(4)]
+                    string_coords = [tuple(string[i].tolist()) for i in range(4)]
 
 
-                cln.update_points(string_coords, bow_coords)
-                midlines = cln.get_midline()
-                vert_lines = cln.get_vertical_lines()
-                intersect_points = cln.intersects_vertical(midlines, vert_lines)
-                annotated_frame = cln.display_classification(intersect_points, annotated_frame)
+                    cln.update_points(string_box_xyxyxyxy=string_coords, bow_box_xyxyxyxy=bow_coords)
+                    midlines = cln.get_midline()
+                    vert_lines = cln.get_vertical_lines()
+                    intersect_points = cln.intersects_vertical(midlines, vert_lines)
+                    annotated_frame = cln.display_classification(intersect_points, annotated_frame)
                 
 
         
