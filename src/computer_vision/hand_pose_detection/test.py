@@ -22,7 +22,7 @@ GestureRecognizerOptions = mp.tasks.vision.GestureRecognizerOptions
 VisionRunningMode = mp.tasks.vision.RunningMode
 
 # gesture model path (set path to gesture_recognizer_custom.task)
-gesture_model = '/Users/Wpj11/Documents/GitHub/Evaluator-code/src/computer_vision/hand_pose_detection/3_category.task'
+gesture_model = '/Users/jacksonshields/Documents/Evaluator/Evaluator-code/src/computer_vision/hand_pose_detection/3_category.task'
 
 # A class that stores methods/data for 2d points on the screen
 
@@ -183,13 +183,13 @@ else:
 def main():
     # YOLOv8 model trained from Roboflow dataset
     # Used for bow and target area oriented bounding boxes
-    model = YOLO('/Users/Wpj11/Documents/GitHub/Evaluator-code/src/computer_vision/hand_pose_detection/bow_target.pt')  # Path to your model file
+    model = YOLO('/Users/jacksonshields/Documents/Evaluator/runs/obb/train4/weights/best.pt')  # Path to your model file
   
     # For webcam input:
     # model.overlap = 80
 
     #input video file
-    video_file_path = '/Users/Wpj11/Documents/GitHub/Evaluator-code/src/computer_vision/hand_pose_detection/Vertigo for Solo Cello - Cicely Parnas.mp4'
+    video_file_path = '/Users/jacksonshields/Documents/Evaluator/Evaluator-code/src/computer_vision/hand_pose_detection/Too much pronation.mp4'
     cap = cv2.VideoCapture(video_file_path) # change argument to 0 for demo/camera input
 
     frame_count = 0
@@ -309,6 +309,8 @@ def main():
             string_coord_list =[]
             YOLOresults = model(image)
             for result in YOLOresults:
+                if (result.obb == None):
+                    break
                 if len(result.obb.xyxyxyxy) > 0:
                     coord_box_one = result.obb.xyxyxyxy[0]
                     round_coord_box_one = torch.round(coord_box_one)
