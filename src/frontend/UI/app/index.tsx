@@ -3,7 +3,8 @@ import { SafeAreaView, Button, Text, Image, StyleSheet, View, Dimensions, Scroll
 
 import { ResizeMode, Video } from 'expo-av';
 import * as ImagePickerExpo from 'expo-image-picker';
-import { Camera, CameraView } from 'expo-camera';
+
+import { Camera, useCameraDevice, useCameraPermission } from 'react-native-vision-camera'
 
 import { Svg, Circle, Line} from 'react-native-svg';
 
@@ -47,12 +48,11 @@ export default function App() {
   const [supinating, setSupinating] = useState<String>("none");
   
   
-
   // CameraComponent to handle camera view
 interface CameraComponentProps {
   startDelay: number;
 }
-
+/*
 const CameraComponent: React.FC<CameraComponentProps> = ({ startDelay }) => {
   const cameraRef = useRef<Camera | null>(null); // Ref to the Camera component
 
@@ -98,6 +98,27 @@ const CameraComponent: React.FC<CameraComponentProps> = ({ startDelay }) => {
     </View>
   );
 };
+*/
+
+
+const CameraComponent: React.FC<CameraComponentProps> = ({ startDelay }) => {
+  const device = useCameraDevice('back');
+  if (device == null) return null;
+
+  return (
+    <View style={styles.cameraContainer}>
+      <Camera
+        style={{ flex: 1 }}
+        device={device}
+        isActive={true}
+        photo={true}
+        video={false}
+      />
+      <Text style={styles.placeholderText}> Forearm posture: {supinating} </Text> 
+      <Button title="RECORD" onPress={() => setRecording(!recording)} />
+    </View>
+  )
+};
 
   // Fetch IP address on mount
   useEffect(() => {
@@ -113,17 +134,20 @@ const CameraComponent: React.FC<CameraComponentProps> = ({ startDelay }) => {
 
     // Request camera permission
     const getCameraPermission = async () => {
-      const { status } = await Camera.requestCameraPermissionsAsync();
-      setHasPermission(status === 'granted');
+      const hasPermission = Camera.getCameraPermissionStatus();
+      if (!hasPermission) {
+        useCameraPermission();
+      }
+      //const { hasPermission, requestPermission } = await useCameraPermission();
     };
     getCameraPermission();
   }, []);
 
   // Function to handle video selection
   const pickVideo = async () => {
-    const permissionResult = await Camera.requestCameraPermissionsAsync();
+    const permissionResult = await Camera.requestCameraPermission();
 
-    if (!permissionResult.granted) {
+    if (!permissionResult) {
       alert('Permission to access media library is required!');
       return;
     }
