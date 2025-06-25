@@ -56,7 +56,7 @@ def parse_bow(coord_list, classification_list, bow_dict):
         coord_list.update({"box string top right": (bow_dict["string"][1][0], bow_dict["string"][1][1])})
         coord_list.update({"box string bottom left": (bow_dict["string"][2][0], bow_dict["string"][2][1])})
         coord_list.update({"box string bottom right": (bow_dict["string"][3][0], bow_dict["string"][3][1])})
-    classification_list.update(("bow vertical", bow_verticals[bow_dict["class"]]))
+    classification_list.update({"bow vertical": bow_verticals[bow_dict["class"]]})
 
 def processFrame(image):
     bow_instance = bow_class()
@@ -157,6 +157,7 @@ def videoFeed(video_path_arg, output_path):
         if "box string top left" in coord_list:
             # Define the color and size of the dot
             color = (73, 34, 124)
+            text_color = (73, 34, 124)
             # SHOWING DOTS
             cv2.circle(image, (int(coord_list["box string top left"][0]), int(coord_list["box string top left"][1])), radius, color, thickness)
             cv2.circle(image, (int(coord_list["box string top right"][0]), int(coord_list["box string top right"][1])), radius, color, thickness)
@@ -186,6 +187,7 @@ def videoFeed(video_path_arg, output_path):
 
         #Handling bow vertical classification video text
         if "bow vertical" in classification_list:
+            text_offset = 35
             bow_text_coord = (image.shape[1] - 370, text_offset * 11 + 0) # Adjusted to move down and left
             cv2.putText(image, classification_list["bow vertical"], bow_text_coord, cv2.FONT_HERSHEY_SIMPLEX, .8, (255, 0, 0), 4)
 
