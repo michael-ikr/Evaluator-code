@@ -37,8 +37,8 @@ gesture_model = os.path.join(hand_pose_dir, "gesture_recognizer_custom.task")
 # Codes for bow verticals
 bow_verticals = {
     -3: "Calibrating. Keep bow away from strings",
-    -2: "Invalid",
-    -1: "Invalid",
+    -2: "Invalid, no points",
+    -1: "Invalid, some points",
     0: "Correct",
     1: "Outside Bow Zone",
     2: "Too Low",
@@ -231,5 +231,5 @@ def videoFeed(video_path_arg, output_path):
   
 
 if __name__ == "__main__":
-    print(videoFeed("Cello_backend_test_v2.mp4", "_backend_test.mp4"))
+    print(videoFeed("Cello_backend_test_v3.mp4", "_backend_test.mp4"))
 
