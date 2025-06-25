@@ -33,86 +33,6 @@ VisionRunningMode = mp.tasks.vision.RunningMode
 hand_pose_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 gesture_model = os.path.join(hand_pose_dir, "gesture_recognizer_custom.task")
 
-#Point 2D class
-# A class that stores methods/data for 2d points on the screen
-class Point2D:
-    def __init__(self, x=0, y=0):
-        self.x = x
-        self.y = y
-
-    def __repr__(self):
-        return f"Point2D({self.x}, {self.y})"
-    
-    def __eq__(self, other):
-        return self.x == other.x and self.y == other.y
-
-    def distance_to(self, other):
-        return ((self.x - other.x) ** 2 + (self.y - other.y) ** 2) ** 0.5
-
-    def move(self, dx, dy):
-        self.x += dx
-        self.y += dy
-
-    def as_tuple(self):
-        return (self.x, self.y)
-    
-    def to_dict(self):
-        return {'x': self.x, 'y': self.y}
-    
-    def find_point_p1(A, B, ratio=0.7):
-        """
-        Finds the coordinates of point P1 that is `ratio` distance from A to B.
-        
-        Parameters:
-        A (Point2D): Point A
-        B (Point2D): Point B
-        ratio (float): Ratio of the distance from A to B where P1 should be (default is 0.7)
-        
-        Returns:
-        Point2D: Coordinates of point P1
-        """
-        Px = A.x + ratio * (B.x - A.x)
-        Py = A.y + ratio * (B.y - A.y)
-        return Point2D(Px, Py)
-
-    def find_intersection(p1, p2, p3, p4):
-        # Line 1: passing through p1 and p2
-        A1 = p2.y - p1.y  # y2 - y1
-        B1 = p1.x - p2.x  # x1 - x2
-        C1 = A1 * p1.x + B1 * p1.y
- 
-        # Line 2: passing through p3 and p4
-        A2 = p4.y - p3.y  # y4 - y3
-        B2 = p3.x - p4.x  # x3 - x4
-        C2 = A2 * p3.x + B2 * p3.y
- 
-        # Determinant of the system
-        det = A1 * B2 - A2 * B1
- 
-        if det == 0:
-            # Lines are parallel (no intersection)
-            return None
-        else:
-            # Lines intersect, solving for x and y
-            x = (B2 * C1 - B1 * C2) / det
-            y = (A1 * C2 - A2 * C1) / det
-        return Point2D(x, y)
-    
-    def is_above_or_below(self, A, B):
-        """
-        Determines if the current point (self) is above or below the line segment defined by points A and B.
-        Parameters:
-        A (Point2D): First endpoint of the line segment.
-        B (Point2D): Second endpoint of the line segment.
-        Returns:
-        bool: True if the current point (self) is above the line, False if it is below or on the line.
-        """
-        # Calculate the cross product of vectors AB and AC (where C is self)
-        cross_product = (B.x - A.x) * (self.y - A.y) - (B.y - A.y) * (self.x - A.x)
-        if cross_product > 0:
-            return True  # Current point (self) is above the line
-        else:
-            return False 
 
 # Codes for bow verticals
 bow_verticals = {
@@ -127,23 +47,23 @@ bow_verticals = {
 
 def parse_bow(coord_list, classification_list, bow_dict):
     if (bow_dict["bow"] != None):
-        coord_list.append(("box bow top left", Point2D(bow_dict["bow"][0][0], bow_dict["bow"][0][1])))
-        coord_list.append(("box bow top right", Point2D(bow_dict["bow"][1][0], bow_dict["bow"][1][1])))
-        coord_list.append(("box bow bottom left", Point2D(bow_dict["bow"][2][0], bow_dict["bow"][2][1])))
-        coord_list.append(("box bow bottom right", Point2D(bow_dict["bow"][3][0], bow_dict["bow"][3][1])))
+        coord_list.update({"box bow top left": (bow_dict["bow"][0][0], bow_dict["bow"][0][1])})
+        coord_list.update({"box bow top right": (bow_dict["bow"][1][0], bow_dict["bow"][1][1])})
+        coord_list.update({"box bow bottom left": (bow_dict["bow"][2][0], bow_dict["bow"][2][1])})
+        coord_list.update({"box bow bottom right": (bow_dict["bow"][3][0], bow_dict["bow"][3][1])})
     if (bow_dict["string"] != None):
-        coord_list.append(("box string top left", Point2D(bow_dict["string"][0][0], bow_dict["string"][0][1])))
-        coord_list.append(("box string top right", Point2D(bow_dict["string"][1][0], bow_dict["string"][1][1])))
-        coord_list.append(("box string bottom left", Point2D(bow_dict["string"][2][0], bow_dict["string"][2][1])))
-        coord_list.append(("box string bottom right", Point2D(bow_dict["string"][3][0], bow_dict["string"][3][1])))
-    classification_list.append(("bow vertical", bow_verticals[bow_dict["class"]]))
+        coord_list.update({"box string top left": (bow_dict["string"][0][0], bow_dict["string"][0][1])})
+        coord_list.update({"box string top right": (bow_dict["string"][1][0], bow_dict["string"][1][1])})
+        coord_list.update({"box string bottom left": (bow_dict["string"][2][0], bow_dict["string"][2][1])})
+        coord_list.update({"box string bottom right": (bow_dict["string"][3][0], bow_dict["string"][3][1])})
+    classification_list.update(("bow vertical", bow_verticals[bow_dict["class"]]))
 
 def processFrame(image):
     bow_instance = bow_class()
     bow_dict = bow_instance.process_frame(image)
     
-    coord_list = []
-    classification_list = []
+    coord_list = {}
+    classification_list = {}
 
     parse_bow(coord_list, classification_list, bow_dict)
 
@@ -184,6 +104,8 @@ def videoFeed(video_path_arg, output_path):
         image.flags.writeable = False
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         coord_list, classification_list = processFrame(image)
+        print("coord list: ", coord_list)
+        print("class list: ", classification_list)
         frame_count += 1
         """
         if (frame_count % 30 == 0):
@@ -198,17 +120,40 @@ def videoFeed(video_path_arg, output_path):
                 num_correct = 0
         """
 
-        #Handling bow box and string box points
+        #Handling bow box points
         radius = 5           # Radius of the dot
         thickness = -1       # Thickness -1 fills the circle, creating a dot
         if "box bow top left" in coord_list:
             color = (73, 34, 124)
+            text_color = (167, 52, 53)
             # SHOWING DOTS
             cv2.circle(image, (int(coord_list["box bow top left"][0]), int(coord_list["box bow top left"][1])), radius, color, thickness)
             cv2.circle(image, (int(coord_list["box bow top right"][0]), int(coord_list["box bow top right"][1])), radius, color, thickness)
             cv2.circle(image, (int(coord_list["box bow bottom left"][0]), int(coord_list["box bow bottom left"][1])), radius, color, thickness)
             cv2.circle(image, (int(coord_list["box bow bottom right"][0]), int(coord_list["box bow bottom right"][1])), radius, color, thickness)
+
+            # Prepare text
+            text_one = "Bow OBB Coords:"
+            text_coord1 = f"Coord 1: ({coord_list['box bow top left'][0]}, {coord_list['box bow top left'][1]})"
+            text_coord2 = f"Coord 2: ({coord_list['box bow top right'][0]}, {coord_list['box bow top right'][1]})"
+            text_coord3 = f"Coord 3: ({coord_list['box bow bottom left'][0]}, {coord_list['box bow bottom left'][1]})"
+            text_coord4 = f"Coord 4: ({coord_list['box bow bottom right'][0]}, {coord_list['box bow bottom right'][1]})"
+    
+            # Define bottom left corners for each text line
+            bottom_left_corner_text_one = (image.shape[1] - 370, 35 * 6 + 20)
+            bottom_left_corner_coord1 = (image.shape[1] - 370, 35 * 7 + 15)
+            bottom_left_corner_coord2 = (image.shape[1] - 370, 35 * 8 + 10)
+            bottom_left_corner_coord3 = (image.shape[1] - 370, 35 * 9 + 5)
+            bottom_left_corner_coord4 = (image.shape[1] - 370, 35 * 10 + 0)
+            
+            # Put text on image for box one
+            cv2.putText(image, text_one, bottom_left_corner_text_one, cv2.FONT_HERSHEY_SIMPLEX, .8, text_color, 2)
+            cv2.putText(image, text_coord1, bottom_left_corner_coord1, cv2.FONT_HERSHEY_SIMPLEX, .8, text_color, 2)
+            cv2.putText(image, text_coord2, bottom_left_corner_coord2, cv2.FONT_HERSHEY_SIMPLEX, .8, text_color, 2)
+            cv2.putText(image, text_coord3, bottom_left_corner_coord3, cv2.FONT_HERSHEY_SIMPLEX, .8, text_color, 2)
+            cv2.putText(image, text_coord4, bottom_left_corner_coord4, cv2.FONT_HERSHEY_SIMPLEX, .8, text_color, 2)
         
+        #String box points handled similarly to the bows
         if "box string top left" in coord_list:
             # Define the color and size of the dot
             color = (73, 34, 124)
@@ -217,6 +162,32 @@ def videoFeed(video_path_arg, output_path):
             cv2.circle(image, (int(coord_list["box string top right"][0]), int(coord_list["box string top right"][1])), radius, color, thickness)
             cv2.circle(image, (int(coord_list["box string bottom left"][0]), int(coord_list["box string bottom left"][1])), radius, color, thickness)
             cv2.circle(image, (int(coord_list["box string bottom right"][0]), int(coord_list["box string bottom right"][1])), radius, color, thickness)
+
+            # Prepare text
+            text_one = "String OBB Coords:"
+            text_coord1 = f"Coord 1: ({coord_list['box string top left'][0]}, {coord_list['box string top left'][1]})"
+            text_coord2 = f"Coord 2: ({coord_list['box string top right'][0]}, {coord_list['box string top right'][1]})"
+            text_coord3 = f"Coord 3: ({coord_list['box string bottom left'][0]}, {coord_list['box string bottom left'][1]})"
+            text_coord4 = f"Coord 4: ({coord_list['box string bottom right'][0]}, {coord_list['box string bottom right'][1]})"
+    
+            text_offset = 35  # increased spacing between lines
+            top_right_corner_text_two = (image.shape[1] - 370, text_offset + 20) # Adjusted to move down and left
+            top_right_corner_coord1_2 = (image.shape[1] - 370, text_offset * 2 + 15) # Adjusted to move down and left
+            top_right_corner_coord2_2 = (image.shape[1] - 370, text_offset * 3 + 10) # Adjusted to move down and left
+            top_right_corner_coord3_2 = (image.shape[1] - 370, text_offset * 4 + 5) # Adjusted to move down and left
+            top_right_corner_coord4_2 = (image.shape[1] - 370, text_offset * 5 + 0) # Adjusted to move down and left
+            
+            # Put text on image for box one
+            cv2.putText(image, text_one, top_right_corner_text_two, cv2.FONT_HERSHEY_SIMPLEX, .8, text_color, 2)
+            cv2.putText(image, text_coord1, top_right_corner_coord1_2, cv2.FONT_HERSHEY_SIMPLEX, .8, text_color, 2)
+            cv2.putText(image, text_coord2, top_right_corner_coord2_2, cv2.FONT_HERSHEY_SIMPLEX, .8, text_color, 2)
+            cv2.putText(image, text_coord3, top_right_corner_coord3_2, cv2.FONT_HERSHEY_SIMPLEX, .8, text_color, 2)
+            cv2.putText(image, text_coord4, top_right_corner_coord4_2, cv2.FONT_HERSHEY_SIMPLEX, .8, text_color, 2)
+
+        #Handling bow vertical classification video text
+        if "bow vertical" in classification_list:
+            bow_text_coord = (image.shape[1] - 370, text_offset * 11 + 0) # Adjusted to move down and left
+            cv2.putText(image, classification_list["bow vertical"], bow_text_coord, cv2.FONT_HERSHEY_SIMPLEX, .8, (255, 0, 0), 4)
 
         #Putting Text for each frame
         image = cv2.putText(
@@ -229,6 +200,11 @@ def videoFeed(video_path_arg, output_path):
             1,
             cv2.LINE_AA
         )
+
+        
+        image.flags.writeable = True
+        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+        #image_height, image_width, _ = image.shape
     
         # Resize to specified output dimensions before writing
         resized_frame = cv2.resize(image, (output_frame_length, output_frame_width))
@@ -253,5 +229,5 @@ def videoFeed(video_path_arg, output_path):
   
 
 if __name__ == "__main__":
-    print(videoFeed("Cello_backend_test.mp4", "_backend_test.mp4"))
+    print(videoFeed("Cello_backend_test_v2.mp4", "_backend_test.mp4"))
 
