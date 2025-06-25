@@ -58,8 +58,8 @@ def parse_bow(coord_list, classification_list, bow_dict):
         coord_list.update({"box string bottom right": (bow_dict["string"][3][0], bow_dict["string"][3][1])})
     classification_list.update({"bow vertical": bow_verticals[bow_dict["class"]]})
 
-def processFrame(image):
-    bow_instance = bow_class()
+def processFrame(bow_instance, image):
+    #Have the process frame take in a bow class object
     bow_dict = bow_instance.process_frame(image)
     
     coord_list = {}
@@ -74,6 +74,7 @@ Adapted the old videoFeed function. It processes each frame and turns it into a 
 There's some extra code for the supination cv text that should be adapted once that comes in. 
 '''
 def videoFeed(video_path_arg, output_path):
+    bow_instance = bow_class()
     # video capture setup
     cap = cv2.VideoCapture(video_path_arg)
     if not cap.isOpened():
@@ -102,8 +103,8 @@ def videoFeed(video_path_arg, output_path):
         # To improve performance, optionally mark the image as not writeable to
             # pass by reference.
         image.flags.writeable = False
+        coord_list, classification_list = processFrame(bow_instance, image)
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        coord_list, classification_list = processFrame(image)
         print("coord list: ", coord_list)
         print("class list: ", classification_list)
         frame_count += 1

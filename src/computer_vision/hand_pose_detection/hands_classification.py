@@ -174,7 +174,7 @@ class Hands:
             max_num_hands=num_hands,
             min_detection_confidence=0.5,
             min_tracking_confidence=0.5) as hands, mp_pose.Pose(
-            model_complexity=2,
+            model_complexity=0,
             min_detection_confidence=0.4,
             min_tracking_confidence=0.6) as pose:
 
