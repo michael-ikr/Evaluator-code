@@ -503,7 +503,7 @@ class Classification:
         return_dict = {"class": None, "bow": None, "string": None}
         #expectation is that the frame is already resized to correct proportions
         classes = ["bow", "string"]
-        model = YOLO('best.pt')  # Replace with your actual model file    
+        model = YOLO('best 5.pt')  # Replace with your actual model file    
         results = model(frame)
         avg_frame_counter = False
         if len(results) == 0:
