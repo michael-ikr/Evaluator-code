@@ -75,26 +75,35 @@ interface CameraComponentProps {
 const CameraComponent: React.FC<CameraComponentProps> = ({ startDelay }) => {
   const cameraRef = useRef<Camera | null>(null); // Ref to the Camera component
 
+  const [isProcessingFrame, setIsProcessingFrame] = useState(false);
+
   const takePicture = async () => {
-    if (cameraRef.current) {
+  if (cameraRef.current && !isProcessingFrame) {
+    setIsProcessingFrame(true);
+    try {
       const photo = await cameraRef.current.takePictureAsync({
         qualityPrioritization: 'speed',
-        quality: 85,
+        quality: 50,
         skipProcessing: true,
         skipMetadata: true,
-        shutterSound: false,
-    });
-      sendImageToBackend(photo.base64 || '');
-      // console.log("photo dimensions: ", photo.width, photo.height);
+        base64: true,
+        exif: false,
+      });
+      await sendImageToBackend(photo.base64 || '');
+    } catch (err) {
+      console.error("Camera error:", err);
+    } finally {
+      setIsProcessingFrame(false);
     }
-  };
+  }
+};
 
   useEffect(() => {
     if (recording && !(loading)) {
       setTimeout(() => {
         intervalRef.current = setInterval(() => {
           takePicture();
-        }, 500);
+        }, 800);
       }, startDelay)
     } else {
       clearInterval(intervalRef.current);
