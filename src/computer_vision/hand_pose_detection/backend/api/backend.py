@@ -56,7 +56,10 @@ def parse_bow(coord_list, classification_list, bow_dict):
         coord_list.update({"box string top right": (bow_dict["string"][1][0], bow_dict["string"][1][1])})
         coord_list.update({"box string bottom left": (bow_dict["string"][2][0], bow_dict["string"][2][1])})
         coord_list.update({"box string bottom right": (bow_dict["string"][3][0], bow_dict["string"][3][1])})
-    classification_list.update({"bow vertical": bow_verticals[bow_dict["class"]]})
+    if (bow_dict["class"] != None):
+        classification_list.update({"bow vertical": bow_verticals[bow_dict["class"]]})
+    if (bow_dict["angle"] != None):
+        classification_list.update({"bow angle": bow_verticals[bow_dict["angle"]]})
 
 def parse_hands(coord_list, classification_list, hands_dict):
     wrist_posture = hands_dict[0]
@@ -65,6 +68,8 @@ def parse_hands(coord_list, classification_list, hands_dict):
 
     classification_list.update({"wrist posture": str(wrist_posture)})
     classification_list.update({"elbow posture": str(elbow_posture)})
+
+    print("Hands points: ", hand_coordinates)
 
 def processFrame(bow_instance, hands_instance, image):
     #Have the process frame take in a bow class object
@@ -77,6 +82,8 @@ def processFrame(bow_instance, hands_instance, image):
     parse_bow(coord_list, classification_list, bow_dict)
     parse_hands(coord_list, classification_list, hands_results)
 
+    
+
     return coord_list, classification_list
 
 '''
@@ -85,6 +92,7 @@ There's some extra code for the supination cv text that should be adapted once t
 '''
 def videoFeed(video_path_arg, output_path):
     bow_instance = bow_class()
+    hands_instance = hands_class()
     # video capture setup
     cap = cv2.VideoCapture(video_path_arg)
     if not cap.isOpened():
@@ -113,7 +121,7 @@ def videoFeed(video_path_arg, output_path):
         # To improve performance, optionally mark the image as not writeable to
             # pass by reference.
         image.flags.writeable = False
-        coord_list, classification_list = processFrame(bow_instance, image)
+        coord_list, classification_list = processFrame(bow_instance, hands_instance, image)
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         print("coord list: ", coord_list)
         print("class list: ", classification_list)
@@ -204,17 +212,24 @@ def videoFeed(video_path_arg, output_path):
             bow_text_coord = (image.shape[1] - 370, text_offset * 11 + 0) # Adjusted to move down and left
             cv2.putText(image, ("Bow: " + classification_list["bow vertical"]), bow_text_coord, cv2.FONT_HERSHEY_SIMPLEX, .8, text_color, 4)
 
+        #Handling bow angle classification video text
+        if "bow angle" in classification_list:
+            text_color = (255, 0, 0)
+            bow_text_coord = (image.shape[1] - 370, text_offset * 13 + 0) # Adjusted to move down and left
+            cv2.putText(image, ("Bow: " + classification_list["bow angle"]), bow_text_coord, cv2.FONT_HERSHEY_SIMPLEX, .8, text_color, 4)
+
+
         #Handling wrist posture video text
         if "wrist posture" in classification_list:
             text_color = (255, 0, 0)
-            wrist_text_coord = (image.shape[1] - 370, text_offset * 13 + 0)
+            wrist_text_coord = (image.shape[1] - 370, text_offset * 15 + 0)
             cv2.putText(image, ("Wrist: " + classification_list["wrist posture"]), wrist_text_coord, cv2.FONT_HERSHEY_SIMPLEX, .8, text_color, 4)
         
         
         #Handling elbow posture video text
         if "elbow posture" in classification_list:
             text_color = (255, 0, 0)
-            elbow_text_coord = (image.shape[1] - 370, text_offset * 15 + 0)
+            elbow_text_coord = (image.shape[1] - 370, text_offset * 17 + 0)
             cv2.putText(image, ("Elbow: " + classification_list["elbow posture"]), elbow_text_coord, cv2.FONT_HERSHEY_SIMPLEX, .8, text_color, 4)
 
         #Putting Text for each frame

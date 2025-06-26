@@ -123,7 +123,7 @@ class Hands:
 
         return temp_landmark_list
     
-    def classify_elbow_posture(self, landmarks, debug_image):
+    def classify_elbow_posture(self, landmarks):
 
         shoulder = landmarks[11]
         elbow = landmarks[13]
@@ -167,8 +167,6 @@ class Hands:
         elbow_posture = 'None Detected'
         hand_coordinates = 'None Detected'
 
-        test = []
-
         with mp_hands.Hands(
             model_complexity=0,
             max_num_hands=num_hands,
@@ -184,15 +182,11 @@ class Hands:
 
             image = cv2.flip(image, 1)
             #image = cv2.rotate(image, cv2.ROTATE_90_CLOCKWISE)
-            debug_image = np.copy(image)  # Use np.copy() instead of copy.deepcopy()
-            debug_image.flags.writeable = True
 
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
             # mp hand model
             results = hands.process(image)
-
-            print(results)
 
             # mp pose model
             pose_results = pose.process(image)
@@ -233,7 +227,7 @@ class Hands:
                         landmarks = pose_results.pose_landmarks.landmark
 
                         
-                    elbow_metrics = self.classify_elbow_posture(landmarks, debug_image)
+                    elbow_metrics = self.classify_elbow_posture(landmarks)
 
                     elbow_classification_id = elbow_classifier(elbow_metrics)
 
@@ -244,11 +238,8 @@ class Hands:
                     elif elbow_classification_id == 2:
                         elbow_posture = 'Too High'
 
-        #hand coordinates are returned as x, y, and z coordinates
-        i = 0
-        while i <= 20:
-            cord = hand_coordinates.landmark[i].x
-            hand_coordinates.landmark[i].x = 1 - cord
-            i += 1
+        #gets rid of the z coordinate and flips the x-coordinates
+        if hand_coordinates != "None Detected":
+            hand_coordinates = [(1 - lm.x, lm.y) for lm in hand_landmarks.landmark]
                 
         return (wrist_posture, elbow_posture, hand_coordinates)
