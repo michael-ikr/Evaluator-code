@@ -578,7 +578,7 @@ class Classification:
         return_dict = {"class": None, "bow": None, "string": None, "angle": None}
         #expectation is that the frame is already resized to correct proportions
         classes = ["bow", "string"]
-        model = YOLO('best.pt')  # Replace with your actual model file    
+        model = YOLO('best 4.pt')  # Replace with your actual model file    
         results = model(frame)
         avg_frame_counter = False
         if len(results) == 0:
@@ -691,7 +691,7 @@ class Classification:
 def main():
     # Open video
     # Load YOLOv11 OBB model
-    model = YOLO('best.pt')  # Replace with your actual model file    
+    model = YOLO('best 4.pt')  # Replace with your actual model file    
     cap = cv2.VideoCapture("Vertigo for Solo Cello - Cicely Parnas.mp4")
     # cap = cv2.VideoCapture("bow too high-slow (3).mp4")
     def resize_keep_aspect(image, target_width=1200):
