@@ -59,7 +59,7 @@ def parse_bow(coord_list, classification_list, bow_dict):
     if (bow_dict["class"] != None):
         classification_list.update({"bow vertical": bow_verticals[bow_dict["class"]]})
     if (bow_dict["angle"] != None):
-        classification_list.update({"bow angle": bow_verticals[bow_dict["angle"]]})
+        classification_list.update({"bow angle": bow_dict["angle"]})
 
 def parse_hands(coord_list, classification_list, hands_dict):
     wrist_posture = hands_dict[0]
@@ -73,6 +73,7 @@ def parse_hands(coord_list, classification_list, hands_dict):
 
 def processFrame(bow_instance, hands_instance, image):
     #Have the process frame take in a bow class object
+    print("Image size: ", np.shape(image))
     bow_dict = bow_instance.process_frame(image)
     hands_results = hands_instance.process_frame(image)
 
@@ -145,8 +146,8 @@ def videoFeed(video_path_arg, output_path):
         text_offset = 35
 
         if "box bow top left" in coord_list:
-            color = (73, 34, 124)
-            text_color = (167, 52, 53)
+            color = (0, 255, 0)
+            text_color = (211, 100, 100)
             # SHOWING DOTS
             cv2.circle(image, (int(coord_list["box bow top left"][0]), int(coord_list["box bow top left"][1])), radius, color, thickness)
             cv2.circle(image, (int(coord_list["box bow top right"][0]), int(coord_list["box bow top right"][1])), radius, color, thickness)
@@ -177,8 +178,8 @@ def videoFeed(video_path_arg, output_path):
         #String box points handled similarly to the bows
         if "box string top left" in coord_list:
             # Define the color and size of the dot
-            color = (73, 34, 124)
-            text_color = (73, 34, 124)
+            color = (0, 255, 0)
+            text_color = (0, 255, 0)
             # SHOWING DOTS
             cv2.circle(image, (int(coord_list["box string top left"][0]), int(coord_list["box string top left"][1])), radius, color, thickness)
             cv2.circle(image, (int(coord_list["box string top right"][0]), int(coord_list["box string top right"][1])), radius, color, thickness)
@@ -216,7 +217,7 @@ def videoFeed(video_path_arg, output_path):
         if "bow angle" in classification_list:
             text_color = (255, 0, 0)
             bow_text_coord = (image.shape[1] - 370, text_offset * 13 + 0) # Adjusted to move down and left
-            cv2.putText(image, ("Bow: " + classification_list["bow angle"]), bow_text_coord, cv2.FONT_HERSHEY_SIMPLEX, .8, text_color, 4)
+            cv2.putText(image, ("Bow angle: " + str(classification_list["bow angle"])), bow_text_coord, cv2.FONT_HERSHEY_SIMPLEX, .8, text_color, 4)
 
 
         #Handling wrist posture video text
@@ -272,5 +273,5 @@ def videoFeed(video_path_arg, output_path):
   
 
 if __name__ == "__main__":
-    print(videoFeed("Cello_backend_test_v3.mp4", "_backend_test.mp4"))
+    print(videoFeed("Cello_backend_test_v2.mp4", "_backend_test_v2.mp4"))
 
