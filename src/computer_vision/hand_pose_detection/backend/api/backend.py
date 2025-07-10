@@ -394,14 +394,15 @@ def videoFeed(video_path_arg, output_path):
                         mp_drawing_styles.get_default_hand_landmarks_style(),
                         mp_drawing_styles.get_default_hand_connections_style())
 
-                    landmark_subset = landmark_pb2.NormalizedLandmarkList(
-                        landmark=pose_results.pose_landmarks.landmark[11:15]
-                    )
-                    mp_drawing.draw_landmarks(
-                        image,
-                        landmark_subset,
-                        None,
-                        mp_drawing.DrawingSpec(color=(255, 0, 0), thickness=10, circle_radius=6))
+                    if pose_results.pose_landmarks is not None:
+                        landmark_subset = landmark_pb2.NormalizedLandmarkList(
+                            landmark=pose_results.pose_landmarks.landmark[11:15]
+                        )
+                        mp_drawing.draw_landmarks(
+                            image,
+                            landmark_subset,
+                            None,
+                            mp_drawing.DrawingSpec(color=(255, 0, 0), thickness=10, circle_radius=6))
 
             oriented_box_annotator = sv.OrientedBoxAnnotator()
             annotated_frame = oriented_box_annotator.annotate(
@@ -760,16 +761,15 @@ def processFrame(image):
                     mp_drawing_styles.get_default_hand_landmarks_style(),
                     mp_drawing_styles.get_default_hand_connections_style())
                 
-                landmark_subset = landmark_pb2.NormalizedLandmarkList(
-                    landmark=pose_results.pose_landmarks.landmark[11:15]
-
-                )
-                
-                mp_drawing.draw_landmarks(
-                    background,
-                    landmark_subset,
-                    None,
-                    mp_drawing.DrawingSpec(color=(255, 0, 0), thickness=10, circle_radius=6))
+                if pose_results.pose_landmarks is not None:
+                    landmark_subset = landmark_pb2.NormalizedLandmarkList(
+                        landmark=pose_results.pose_landmarks.landmark[11:15]
+                    )
+                    mp_drawing.draw_landmarks(
+                        background,
+                        landmark_subset,
+                        None,
+                        mp_drawing.DrawingSpec(color=(255, 0, 0), thickness=10, circle_radius=6))
         else:
             print("Not Processing hands: ")
                 

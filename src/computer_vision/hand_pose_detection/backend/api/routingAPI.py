@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, WebSocket
 from pydantic import BaseModel
 import base64
 import numpy as np
@@ -12,6 +12,7 @@ import shlex
 import json
 from fastapi.staticfiles import StaticFiles
 import shutil
+import traceback
 
 
 app = FastAPI()
@@ -34,148 +35,153 @@ class VideoPayload(BaseModel):
 # TODO: use ip address of your computer here (use ipconfig or ifconfig to look up)
 server_ip = ""
 
-@app.post("/upload")
-async def process_image(payload: ImagePayload):
-    base64_image = payload.image
 
-    if base64_image.startswith('data:image'):
-        base64_image = base64_image.split(',')[1]
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    print("WebSocket connection accepted")
 
-    padding_needed = len(base64_image) % 4
-    if padding_needed != 0:
-        base64_image += '=' * (4 - padding_needed)
+    while True:
+        try:
+            data = await websocket.receive_json()
+            base64_image = data["image"]
 
-    image_data = base64.b64decode(base64_image)
-    nparr = np.frombuffer(image_data, np.uint8)
-    image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+            if base64_image.startswith("data:image"):
+                base64_image = base64_image.split(",")[1]
 
-    points = backend.processFrame(image)
+            padding_needed = len(base64_image) % 4
+            if padding_needed != 0:
+                base64_image += "=" * (4 - padding_needed)
 
-    pointsDummy = [ ("box bow top left", backend.Point2D(200, 200)),
-                            ("box bow top right", backend.Point2D(250, 200)), 
-                            ("box bow bottom right", backend.Point2D(250, 270)), 
-                            ("box bow bottom left", backend.Point2D(200, 270)), 
+            image_data = base64.b64decode(base64_image)
+            nparr = np.frombuffer(image_data, np.uint8)
+            image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+            points = backend.processFrame(image)
+
+            # Dummy fallback
+            pointsDummy = [
+                ("box bow top left", backend.Point2D(200, 200)),
+                ("box bow top right", backend.Point2D(250, 200)), 
+                ("box bow bottom right", backend.Point2D(250, 270)), 
+                ("box bow bottom left", backend.Point2D(200, 270)), 
+                ("box string top left", backend.Point2D(100, 100)), 
+                ("box string top right", backend.Point2D(300, 100)), 
+                ("box string bottom right", backend.Point2D(300, 150)), 
+                ("box string bottom left", backend.Point2D(100, 150)),
+                ("supination", "Invalid")
+            ]
+            response_data = {}
+
+            # this logic depends on the data being the correct order (bow box, string box, hands, supination)
+            if len(points) == 9 or len(points) == 30:
+                for point in points:
+                    if point[0] != "supination":
+                        response_data[point[0]] = point[1].to_dict()
+                    else:
+                        response_data[point[0]] = point[1]
+            else:
+                for point in pointsDummy:
+                    if point[0] != "supination":
+                        response_data[point[0]] = point[1].to_dict()
+                    else:
+                        response_data[point[0]] = point[1]
+
+            response_data["_scale"] = {
+                "resized_width": image.shape[1],   # cv2 shape: (height, width, channels)
+                "resized_height": image.shape[0],
+            }
+            # use WebSocket to send results
+            await websocket.send_json(response_data)
+
+        except Exception as e:
+            print("Error during WebSocket message handling:", e)
+            traceback.print_exc()
+            break
+
+
+
+# @app.post("/upload")
+# async def process_image(payload: ImagePayload):
+#     base64_image = payload.image
+
+#     if base64_image.startswith('data:image'):
+#         base64_image = base64_image.split(',')[1]
+
+#     padding_needed = len(base64_image) % 4
+#     if padding_needed != 0:
+#         base64_image += '=' * (4 - padding_needed)
+
+#     image_data = base64.b64decode(base64_image)
+#     nparr = np.frombuffer(image_data, np.uint8)
+#     image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+#     points = backend.processFrame(image)
+
+#     pointsDummy = [ ("box bow top left", backend.Point2D(200, 200)),
+#                             ("box bow top right", backend.Point2D(250, 200)), 
+#                             ("box bow bottom right", backend.Point2D(250, 270)), 
+#                             ("box bow bottom left", backend.Point2D(200, 270)), 
                             
-                            ("box string top left", backend.Point2D(100, 100)), 
-                            ("box string top right", backend.Point2D(300, 100)), 
-                            ("box string bottom right", backend.Point2D(300, 150)), 
-                            ("box string bottom left", backend.Point2D(100, 150)),
+#                             ("box string top left", backend.Point2D(100, 100)), 
+#                             ("box string top right", backend.Point2D(300, 100)), 
+#                             ("box string bottom right", backend.Point2D(300, 150)), 
+#                             ("box string bottom left", backend.Point2D(100, 150)),
 
-                            ("supination", "Invalid")
-                          ]
-
-
-    response_data = {}
-
-    #this logic depends on the data being the correct order (bow box, string box, hands, supination)
-    if (len(points) == 9 or len(points) == 30):
-        for point in points:
-            if (point[0] != "supination"):
-                response_data.update({point[0]: (point[1]).to_dict()})
-            else:
-                response_data.update({point[0]: point[1]})
-    else:
-        for point in pointsDummy:
-            if (point[0] != "supination"):
-                response_data.update({point[0]: (point[1]).to_dict()})
-            else:
-                response_data.update({point[0]: point[1]})
+#                             ("supination", "Invalid")
+#                           ]
 
 
-    '''
-    #old logic for routing points
-    if (len(points) == 9):
-        response_data.update({points[5][0]: (points[5][1]).to_dict()})
-        response_data = {
-            points[0][0]: (points[0][1]).to_dict(),
-            points[1][0]: (points[1][1]).to_dict(),
-            points[2][0]: (points[2][1]).to_dict(),
-            points[3][0]: (points[3][1]).to_dict(),
-            points[4][0]: (points[4][1]).to_dict(),
-            points[5][0]: (points[5][1]).to_dict(),
-            points[6][0]: (points[6][1]).to_dict(),
-            points[7][0]: (points[7][1]).to_dict(),
+#     response_data = {}
 
-            points[8][0]: (points[8][1])
-        }
-    else:
-                response_data = {
-                    pointsDummy[0][0]: (pointsDummy[0][1]).to_dict(),
-                    pointsDummy[1][0]: (pointsDummy[1][1]).to_dict(),
-                    pointsDummy[2][0]: (pointsDummy[2][1]).to_dict(),
-                    pointsDummy[3][0]: (pointsDummy[3][1]).to_dict(),
-                    pointsDummy[4][0]: (pointsDummy[4][1]).to_dict(),
-                    pointsDummy[5][0]: (pointsDummy[5][1]).to_dict(),
-                    pointsDummy[6][0]: (pointsDummy[6][1]).to_dict(),
-                    pointsDummy[7][0]: (pointsDummy[7][1]).to_dict(),
-
-                    pointsDummy[8][0]: (pointsDummy[8][1])
-                }
-                '''
-
-    return response_data
+#     #this logic depends on the data being the correct order (bow box, string box, hands, supination)
+#     if (len(points) == 9 or len(points) == 30):
+#         for point in points:
+#             if (point[0] != "supination"):
+#                 response_data.update({point[0]: (point[1]).to_dict()})
+#             else:
+#                 response_data.update({point[0]: point[1]})
+#     else:
+#         for point in pointsDummy:
+#             if (point[0] != "supination"):
+#                 response_data.update({point[0]: (point[1]).to_dict()})
+#             else:
+#                 response_data.update({point[0]: point[1]})
 
 
-# @app.post("/send-video")
-# async def upload_video(payload: VideoPayload):
-#     print("Received video")
+#     '''
+#     #old logic for routing points
+#     if (len(points) == 9):
+#         response_data.update({points[5][0]: (points[5][1]).to_dict()})
+#         response_data = {
+#             points[0][0]: (points[0][1]).to_dict(),
+#             points[1][0]: (points[1][1]).to_dict(),
+#             points[2][0]: (points[2][1]).to_dict(),
+#             points[3][0]: (points[3][1]).to_dict(),
+#             points[4][0]: (points[4][1]).to_dict(),
+#             points[5][0]: (points[5][1]).to_dict(),
+#             points[6][0]: (points[6][1]).to_dict(),
+#             points[7][0]: (points[7][1]).to_dict(),
 
-#     path = str(Path(__file__).parent.parent / "demo1.mp4")
-#     print (path)
-#     demo1 = path
+#             points[8][0]: (points[8][1])
+#         }
+#     else:
+#                 response_data = {
+#                     pointsDummy[0][0]: (pointsDummy[0][1]).to_dict(),
+#                     pointsDummy[1][0]: (pointsDummy[1][1]).to_dict(),
+#                     pointsDummy[2][0]: (pointsDummy[2][1]).to_dict(),
+#                     pointsDummy[3][0]: (pointsDummy[3][1]).to_dict(),
+#                     pointsDummy[4][0]: (pointsDummy[4][1]).to_dict(),
+#                     pointsDummy[5][0]: (pointsDummy[5][1]).to_dict(),
+#                     pointsDummy[6][0]: (pointsDummy[6][1]).to_dict(),
+#                     pointsDummy[7][0]: (pointsDummy[7][1]).to_dict(),
 
-#     try :
-#         os.remove(demo1)
-#     except FileNotFoundError:
-#         pass
-
-    
-#     output_video = backend.videoFeed(payload.video)
-
-#     print(demo1)
-#     print(output_video)
-
-#     #Convert the AVI file into Mp4 using 
-
-#     try:
-#         result = subprocess.run(
-#         ['ffmpeg', '-i', output_video, '-vf', "transpose=2", demo1],
-#         capture_output=True,
-#         text=True
-#         )
-    
-#         if result.returncode == 0:
-#             output_video = demo1
-#             print("Conversion completed")
-#         else:
-#             print("Conversion failed:")
-#             print(result.stderr)
-#     except FileNotFoundError:
-#         print("ffmpeg not found. Make sure it's installed and in your PATH.")
-
-#     # Following code based on stackoverflow page on getting resolution from ffmpeg
-#     cmd = "ffprobe -v quiet -print_format json -show_streams"
-#     args = shlex.split(cmd)
-#     args.append(demo1)
-#     # run the ffprobe process, decode stdout into utf-8 & convert to JSON
-#     ffprobeOutput = subprocess.check_output(args).decode('utf-8')
-#     ffprobeOutput = json.loads(ffprobeOutput)
-
-#     # find height and width
-#     height = ffprobeOutput['streams'][0]['height']
-#     width = ffprobeOutput['streams'][0]['width']
-
-#     # Encode the file into base64
-#     with open(demo1, "rb") as f:
-#         encoded = base64.b64encode(f.read()).decode("utf-8")
-#         output_video = f"data:video/mp4;base64,{encoded}"
-
-#     response_data = { "Video": output_video,
-#                      "Height": height,
-#                      "Width": width }
-
+#                     pointsDummy[8][0]: (pointsDummy[8][1])
+#                 }
+#                 '''
 
 #     return response_data
+
 
 
 static_dir = Path(__file__).parent / "static"
