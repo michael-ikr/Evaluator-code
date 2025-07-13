@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, HTTPException, WebSocket
+from fastapi import FastAPI, Request, HTTPException, WebSocket, UploadFile, File
 from pydantic import BaseModel
 import base64
 import numpy as np
@@ -13,6 +13,7 @@ import json
 from fastapi.staticfiles import StaticFiles
 import shutil
 import traceback
+from typing import Optional
 
 
 app = FastAPI()
@@ -31,6 +32,11 @@ class ImagePayload(BaseModel):
 class VideoPayload(BaseModel):
     video: str
 
+# response model
+class VideoResponse(BaseModel):
+    Video: str
+    Height: int
+    Width: int
 
 # TODO: use ip address of your computer here (use ipconfig or ifconfig to look up)
 server_ip = ""
@@ -189,10 +195,13 @@ static_dir.mkdir(exist_ok=True)  # create /static
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 
-# base64 + return url
+# support both FormData and JSON base64 format
 @app.post("/send-video")
-async def upload_video(payload: VideoPayload):
-    print("Received video")
+async def upload_video(
+    video: Optional[UploadFile] = File(None),  # FormData format
+    payload: Optional[VideoPayload] = None      # JSON base64 format
+):
+    print("Received video upload request")
 
     current_dir = Path(__file__).parent
     temp_video_path = str(current_dir / "temp_input.mp4")
@@ -207,14 +216,25 @@ async def upload_video(payload: VideoPayload):
             except FileNotFoundError:
                 pass
 
-        # parse base64 video data
-        if "," in payload.video:
-            video_data = base64.b64decode(payload.video.split(",")[1])
+        # support video handling for both formats 
+        if video is not None:
+            # FormData format
+            print("Processing FormData video upload")
+            video_data = await video.read()
+            with open(temp_video_path, "wb") as f:
+                f.write(video_data)
+        elif payload is not None:
+            # Base64 format
+            print("Processing base64 video upload")
+            if "," in payload.video:
+                video_data = base64.b64decode(payload.video.split(",")[1])
+            else:
+                video_data = base64.b64decode(payload.video)
+            
+            with open(temp_video_path, "wb") as f:
+                f.write(video_data)
         else:
-            video_data = base64.b64decode(payload.video)
-
-        with open(temp_video_path, "wb") as f:
-            f.write(video_data)
+            raise HTTPException(status_code=400, detail="No video data provided")
 
         cap = cv2.VideoCapture(temp_video_path)
         if not cap.isOpened():
@@ -254,11 +274,11 @@ async def upload_video(payload: VideoPayload):
         # construct public/local access URL
         video_url = f"http://{server_ip}:8000/static/rotated_video.mp4"
 
-        return {
-            "Video": video_url,
-            "Height": height,
-            "Width": width
-        }
+        return VideoResponse(
+            Video=video_url,
+            Height=height,
+            Width=width
+        )
 
     except Exception as e:
         print("Error:", str(e))
