@@ -41,3 +41,6 @@ dist/
 .env.development.local
 .env.test.local
 .env.production.local
+
+# Big file (>100MB)
+src/computer_vision/hand_pose_detection/best.pt
