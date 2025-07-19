@@ -593,7 +593,7 @@ class Classification:
         return_dict = {"class": None, "bow": None, "string": None, "angle": None}
         #expectation is that the frame is already resized to correct proportions
         classes = ["bow", "string"]
-        model_file = os.path.join(os.path.dirname(__file__), 'best.pt')
+        model_file = os.path.join(os.path.dirname(__file__), 'nano_best.pt')
         model = YOLO(model_file)  # Replace with your actual model file    
         results = model(frame)
         avg_frame_counter = False
@@ -728,8 +728,8 @@ class Classification:
 def main():
     # Open video
     # Load YOLOv11 OBB model
-    model_file = os.path.join(os.path.dirname(__file__), 'best.pt')
-    model = YOLO(model_file)  # Replace with your actual model file     
+    #model_file = os.path.join(os.path.dirname(__file__), 'best.pt')
+    #model = YOLO(model_file)  # Replace with your actual model file     
     video_file = os.path.join(os.path.dirname(__file__), "Cello_backend_test_v3.mp4")
     cap = cv2.VideoCapture(video_file)
     #cap = cv2.VideoCapture(os.path.join(os.path.dirname(__file__), "bow too high-slow (3).mp4"))
