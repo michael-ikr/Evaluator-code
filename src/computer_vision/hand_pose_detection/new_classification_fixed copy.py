@@ -225,7 +225,7 @@ class Classification:
         self.y_avg = [0, 0]
         self.bow_repeat = 0
         self.string_repeat = 0
-        self.model = YOLO('nano_best.pt', task="obb")  # Replace with your actual model file    
+        self.model = YOLO('nano.pt', task="obb")  # Replace with your actual model file    
 
     def update_points(self, string_box_xyxyxyxy, bow_box_xyxyxyxy):
         self.bow_points = bow_box_xyxyxyxy
@@ -451,8 +451,8 @@ class Classification:
         - 0: Intersection is in middle
         """
         #print('intersection:', intersection_points)
-        bot_scaling_factor = .25
-        top_scaling_factor = .20
+        bot_scaling_factor = .15
+        top_scaling_factor = .15
 
         vertical_one = vertical_lines[0]
         vertical_two = vertical_lines[1]
@@ -488,13 +488,13 @@ class Classification:
 
         min_y = ((top_y1 + top_y2) / 2) + height * top_scaling_factor
         #print('min:', min_y)
-        if (intersection_points[0][1] >= min_y or intersection_points[1][1] >= min_y):
-            return 2
+        if (intersection_points[0][1] <= min_y or intersection_points[1][1] <= min_y):
+            return 3
 
         max_y = ((bot_y1 + bot_y2) / 2) - height * bot_scaling_factor
         #print('min:', max_y)
-        if (intersection_points[0][1] <= max_y or intersection_points[1][1] <= max_y):
-            return 3
+        if (intersection_points[0][1] >= max_y or intersection_points[1][1] >= max_y):
+            return 2
 
         return 0
 
