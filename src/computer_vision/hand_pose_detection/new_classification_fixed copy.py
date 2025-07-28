@@ -763,7 +763,7 @@ def main():
             break
 
         # Rotate frame 180 degrees to correct orientation
-        frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
+        #frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
 
         # Run YOLOv11 OBB inference
         annotated_frame = frame.copy()  # Initialize it safely with the original frame
