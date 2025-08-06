@@ -221,6 +221,11 @@ def main():
     num_correct = 0
     display_gesture = "none"
 
+    # Buffering variables for bow analysis
+    bow_placement_buffer = []
+    bow_angle_buffer = []
+    buffer_size = 5
+
     desired_fps = 30 
     frame_delay = int(1000 / desired_fps)
 
@@ -411,7 +416,7 @@ def main():
                     cv2.putText(image, text_coord3, top_right_corner_coord3_2, cv2.FONT_HERSHEY_SIMPLEX, .8, (255, 255, 255), 2)  # Reduced font size
                     cv2.putText(image, text_coord4, top_right_corner_coord4_2, cv2.FONT_HERSHEY_SIMPLEX, .8, (255, 255, 255), 2)  # Reduced font size
 
-                    # Detect if bow too high or low
+                    # Detect if bow too high or low and bow angle with buffering
                     bow_too_high = (image.shape[1] - 370, text_offset * 11 + 0) # Adjusted to move down and left
                     bow_angle = (0, text_offset * 11 + 0) # Adjusted to move down and left
                     if(len(bow_coord_list) == 4 and len(string_coord_list) == 4):
@@ -420,16 +425,56 @@ def main():
                         P2 = Point2D.find_point_p1(bow_coord_list[2], bow_coord_list[3]) # right mid point
                         int1 = Point2D.find_intersection(P1,P2,box_str_point_one,box_str_point_three)
                         int2 = Point2D.find_intersection(P1,P2,box_str_point_two,box_str_point_four)
+                        
                         if Point2D.is_above_or_below(int1, box_str_point_three, box_str_point_four) or Point2D.is_above_or_below(int2, box_str_point_three, box_str_point_four):
-                            cv2.putText(image, "Bow Too High", bow_too_high, cv2.FONT_HERSHEY_SIMPLEX, .8, (255, 0, 0), 4)  # Reduced font size
+                            current_placement = "high"
                         else:
-                            cv2.putText(image, "Bow Correctly placed", bow_too_high, cv2.FONT_HERSHEY_SIMPLEX, .8, (0, 255, 0), 4)  # Reduced font size
+                            current_placement = "correct"
+                        
+                        bow_placement_buffer.append(current_placement)
+                        if len(bow_placement_buffer) > buffer_size:
+                            bow_placement_buffer.pop(0)
+                        
+                        # Update display message if we have enough samples
+                        if len(bow_placement_buffer) >= 3:
+                            high_count = bow_placement_buffer.count("high")
+                            correct_count = bow_placement_buffer.count("correct")
+                            if high_count >= 3:
+                                display_bow_placement = "Bow Too High"
+                                placement_color = (255, 0, 0)
+                            elif correct_count >= 3:
+                                display_bow_placement = "Bow Correctly placed"
+                                placement_color = (0, 255, 0)
+                            else:
+                                placement_color = (255, 0, 0) if "Too High" in display_bow_placement else (0, 255, 0)
+                        
+                        cv2.putText(image, display_bow_placement, bow_too_high, cv2.FONT_HERSHEY_SIMPLEX, .8, placement_color, 4)
+                        
                         # Evaluate correctness of bow angle based on how perpendicular bow is to fingerboard
                         angle = Point2D.angle_between_lines(bow_coord_list[0], bow_coord_list[1], box_str_point_three, box_str_point_four)
+                        
                         if angle > 75 and angle < 105:
-                            cv2.putText(image, "Bow Angle Correct", bow_angle, cv2.FONT_HERSHEY_SIMPLEX, .8, (0, 255, 0), 4)  # Reduced font size
+                            current_angle = "correct"
                         else:
-                            cv2.putText(image, "Bow Not Perpendicular to Fingerboard", bow_angle, cv2.FONT_HERSHEY_SIMPLEX, .8, (255, 0, 0), 4)  # Reduced font size
+                            current_angle = "incorrect"
+                        
+                        bow_angle_buffer.append(current_angle)
+                        if len(bow_angle_buffer) > buffer_size:
+                            bow_angle_buffer.pop(0)
+                        
+                        if len(bow_angle_buffer) >= 3:
+                            correct_angle_count = bow_angle_buffer.count("correct")
+                            incorrect_angle_count = bow_angle_buffer.count("incorrect")
+                            if correct_angle_count >= 3:
+                                display_bow_angle = "Bow Angle Correct"
+                                angle_color = (0, 255, 0)
+                            elif incorrect_angle_count >= 3:
+                                display_bow_angle = "Bow Not Perpendicular to Fingerboard"
+                                angle_color = (255, 0, 0)
+                            else:
+                                angle_color = (0, 255, 0) if "correct" in display_bow_angle else (255, 0, 0)
+                        
+                        cv2.putText(image, display_bow_angle, bow_angle, cv2.FONT_HERSHEY_SIMPLEX, .8, angle_color, 4)
 
             detections = sv.Detections.from_ultralytics(YOLOresults[0])
 
