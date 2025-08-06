@@ -722,14 +722,10 @@ def classify_elbow_posture(shoulder, elbow, hand, reference_ratio, threshold=0.1
         return "Elbow Too High"
     return "Correct Posture"
 
-
 def main():
     # YOLOv8 model trained from Roboflow dataset
     # Used for bow and target area oriented bounding boxes
-    model = YOLO('/Users/felixlu/Desktop/Evaluator/Evaluator-code/src/computer_vision/hand_pose_detection/bow_target.pt')  # Path to your model file
-  
-    # For webcam input:
-    # model.overlap = 80
+    model = YOLO('bow_target.pt')  # Path to your model file
 
     # Initialization of deconvolution parameters
     defocus = False  # Default to motion kernel, change as needed
@@ -741,9 +737,8 @@ def main():
     target_y = 0.5
     proximity_threshold = 0.1
 
-    #input video file
-    # video_file_path = 'src/computer_vision/hand_pose_detection/Vertigo for Solo Cello - Cicely Parnas.mp4'
-    video_file_path = 'src/computer_vision/hand_pose_detection/bow placing too high.mp4'
+    # Input video file
+    video_file_path = 'Supination.mp4'
     cap = cv2.VideoCapture(video_file_path) # change argument to 0 for demo/camera input
 
     frame_count = 0
@@ -755,18 +750,19 @@ def main():
     mp_drawing_styles = mp.solutions.drawing_styles
     mp_hands = mp.solutions.hands
 
-    # Initialize video writer
-    output_file = 'output.mp4' 
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    # saves output video to output_file
-    writer = cv2.VideoWriter(output_file, fourcc, 12.5, (output_frame_length, output_frame_width))
-
-    #setup gesture options
+    # Setup gesture options
     num_hands = 2
-
     finger_coords = {}
 
-    # instantiate gesture classifier
+    # Variables for landmark validation and temporal correction
+    recent_classifications = []  # Store recent valid classifications
+    classification_buffer_size = 10
+    
+    # Variables for pose landmark validation and temporal correction
+    recent_postures = []  # Store recent valid posture classifications
+    posture_buffer_size = 10
+
+    # Instantiate gesture classifier
     keypoint_classifier = KeyPointClassifier(model_path=model_file)
 
     relative_csv_path = 'model/keypoint_classifier/keypoint_classifier_label.csv'
@@ -776,335 +772,256 @@ def main():
         keypoint_classifier_labels = csv.reader(f)
         keypoint_classifier_labels = [row[0] for row in keypoint_classifier_labels]
 
-    # FPS Measurement ########################################################
+    # FPS Measurement
     cvFpsCalc = CvFpsCalc(buffer_len=10)
 
     mode = 0
-    
-    #set up hands and body
-    with mp_hands.Hands(
+
+    #helper functions I created
+    def detect_bad_landmarks(landmark_list):
+        if not landmark_list or len(landmark_list) < 21:
+            return True
+        try:
+            x_coords = [point[0] for point in landmark_list]
+            y_coords = [point[1] for point in landmark_list]
+            x_spread = max(x_coords) - min(x_coords)
+            y_spread = max(y_coords) - min(y_coords)
+            min_expected_spread = 40
+            if x_spread < min_expected_spread or y_spread < min_expected_spread:
+                return True
+            fingertips = [landmark_list[4], landmark_list[8], landmark_list[12], landmark_list[16], landmark_list[20]]
+            close_fingertip_count = 0
+            for i in range(len(fingertips)):
+                for j in range(i + 1, len(fingertips)):
+                    tip1, tip2 = fingertips[i], fingertips[j]
+                    distance = np.sqrt((tip1[0] - tip2[0])**2 + (tip1[1] - tip2[1])**2)
+                    if distance < 15:
+                        close_fingertip_count += 1
+            if close_fingertip_count > 2:
+                return True
+            knuckles = [landmark_list[5], landmark_list[9], landmark_list[13], landmark_list[17]]
+            knuckle_x_coords = [point[0] for point in knuckles]
+            knuckle_y_coords = [point[1] for point in knuckles]
+            knuckle_x_spread = max(knuckle_x_coords) - min(knuckle_x_coords)
+            knuckle_y_spread = max(knuckle_y_coords) - min(knuckle_y_coords)
+            if knuckle_x_spread < 25 or knuckle_y_spread < 15:
+                return True
+            return False
+        except (IndexError, TypeError, ValueError):
+            return True
+
+    def get_recent_valid_classification():
+        if not recent_classifications:
+            return "Supination"
+        classification_counts = {}
+        for classification in recent_classifications[-5:]:
+            classification_counts[classification] = classification_counts.get(classification, 0) + 1
+        if "Supination" in classification_counts:
+            return "Supination"
+        return max(classification_counts, key=classification_counts.get)
+
+    def detect_bad_pose_landmarks(shoulder, elbow, wrist):
+        try:
+            upper_arm_length = np.sqrt((elbow.x - shoulder.x)**2 + (elbow.y - shoulder.y)**2)
+            forearm_length = np.sqrt((wrist.x - elbow.x)**2 + (wrist.y - elbow.y)**2)
+            total_arm_length = np.sqrt((wrist.x - shoulder.x)**2 + (wrist.y - shoulder.y)**2)
+            min_upper_arm, min_forearm = 0.05, 0.04
+            if upper_arm_length < min_upper_arm or forearm_length < min_forearm:
+                return True
+            segment_sum = upper_arm_length + forearm_length
+            geometry_ratio = total_arm_length / segment_sum if segment_sum > 0 else 0
+            if geometry_ratio > 1.2:
+                return True
+            landmarks_spread_x = max(shoulder.x, elbow.x, wrist.x) - min(shoulder.x, elbow.x, wrist.x)
+            landmarks_spread_y = max(shoulder.y, elbow.y, wrist.y) - min(shoulder.y, elbow.y, wrist.y)
+            min_expected_spread = 0.08
+            if landmarks_spread_x < min_expected_spread and landmarks_spread_y < min_expected_spread:
+                return True
+            margin = 0.05
+            for point in [shoulder, elbow, wrist]:
+                if (point.x < margin or point.x > 1.0 - margin or point.y < margin or point.y > 1.0 - margin):
+                    return True
+            return False
+        except (AttributeError, TypeError, ValueError, ZeroDivisionError):
+            return True
+
+    def get_recent_valid_posture():
+        if not recent_postures:
+            return "Normal"
+        posture_counts = {}
+        for posture in recent_postures[-5:]:
+            posture_counts[posture] = posture_counts.get(posture, 0) + 1
+        return max(posture_counts, key=posture_counts.get)
+
+    hands = mp_hands.Hands(
         model_complexity=0,
         max_num_hands=num_hands,
         min_detection_confidence=0.5,
-        min_tracking_confidence=0.5) as hands, mp_pose.Pose(
+        min_tracking_confidence=0.5)
+    pose = mp_pose.Pose(
         model_complexity=0,
         min_detection_confidence=0.4,
-        min_tracking_confidence=0.6) as pose:
-        
-        # Store results across frames
-        classification_results = []
+        min_tracking_confidence=0.6)
+
+    # Store results across frames
+    classification_results = []
     
-        writer = cv2.VideoWriter("demo.avi", cv2.VideoWriter_fourcc(*"MJPG"), 12.5,(output_frame_length,output_frame_width)) # algo makes a frame every ~80ms = 12.5 fps
-        while cap.isOpened():
-            success, image = cap.read()
-            if not success:
-                break
+    # Initialize video writer
+    writer = cv2.VideoWriter("demo.avi", cv2.VideoWriter_fourcc(*"MJPG"), 12.5,(output_frame_length,output_frame_width))
+
+    while cap.isOpened():
+        success, image = cap.read()
+        if not success:
+            break
+            
+        # Process Key (ESC: end)
+        key = cv2.waitKey(10)
+        if key == 27:  # ESC
+            break
+        number, mode = select_mode(key, mode)
+        image = cv2.rotate(image, cv2.ROTATE_90_COUNTERCLOCKWISE)
+        
+        # Calculate FPS
+        fps = cvFpsCalc.get()
+
+        # To improve performance, optionally mark the image as not writeable to pass by reference.
+        image.flags.writeable = False
+        image = cv2.flip(image, 1)
+        debug_image = np.copy(image)
+        debug_image.flags.writeable = True
+        
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        
+        # mp hand and pose models process the frame
+        results = hands.process(image)
+        pose_results = pose.process(image)
+        
+        frame_count += 1
+        image_height, image_width, _ = image.shape
+        
+        # Draw hand landmarks
+        if results.multi_hand_landmarks and pose_results.pose_landmarks:
+            for hand_landmarks, handedness in zip(results.multi_hand_landmarks, results.multi_handedness):
+                for ids, landmrk in enumerate(hand_landmarks.landmark):
+                    cx, cy = landmrk.x * image_width, landmrk.y * image_height
+                    Hands.store_finger_node_coords(ids, cx, cy, finger_coords)
                 
-            # Process Key (ESC: end) #################################################
-            key = cv2.waitKey(10)
-            if key == 27:  # ESC
-                break
+                # Check if the hand is the bow hand
+                if handedness.classification[0].label == 'Right':
+                    brect = Hands.calc_bounding_rect(debug_image, hand_landmarks)
+                    landmark_list = Hands.calc_landmark_list(image, hand_landmarks)
+                    landmarks_are_bad = detect_bad_landmarks(landmark_list)
+                    pre_processed_landmark_list = Hands.pre_process_landmark(landmark_list)
+                    Hands.logging_csv(number, mode, pre_processed_landmark_list, handedness, frame_count)
 
-            number, mode = select_mode(key, mode)
-            
-            # calculate FPS
-            fps = cvFpsCalc.get()
-
-            # To improve performance, optionally mark the image as not writeable to
-            # pass by reference.
-            image.flags.writeable = False
-
-            image = cv2.flip(image, 1)
-            debug_image = np.copy(image)  # Use np.copy() instead of copy.deepcopy()
-            debug_image.flags.writeable = True
-            
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-            
-            # mp hand model
-            results = hands.process(image)
-            # mp pose model
-            pose_results = pose.process(image)
-            
-            frame_count += 1
-
-            
-            '''
-            bow_coord_list = []
-            string_coord_list =[]
-            YOLOresults = model(image)
-            for result in YOLOresults:
-                if len(result.obb.xyxyxyxy) > 0:
-                    coord_box_one = result.obb.xyxyxyxy[0]
-                    round_coord_box_one = torch.round(coord_box_one)
-
-                    box_str_coordinate_1 = round_coord_box_one[0]  # First coordinate (x1, y1)
-                    box_str_coordinate_2 = round_coord_box_one[1]   # Second coordinate (x2, y2)
-                    box_str_coordinate_3 = round_coord_box_one[2]   # Third coordinate (x3, y3)
-                    box_str_coordinate_4 = round_coord_box_one[3]   # Fourth coordinate (x4, y4)
-
-                    #create Point2D objects for each box coordinate
-                    box_str_point_one = Point2D(box_str_coordinate_1[0].item(), box_str_coordinate_1[1].item())
-                    box_str_point_two = Point2D(box_str_coordinate_2[0].item(), box_str_coordinate_2[1].item())
-                    box_str_point_three = Point2D(box_str_coordinate_3[0].item(), box_str_coordinate_3[1].item())
-                    box_str_point_four = Point2D(box_str_coordinate_4[0].item(), box_str_coordinate_4[1].item())
-
-                    # Prepare text
-                    text_one = "String OBB Coords:"
-                    text_coord1 = f"Coord 1: ({box_str_point_one.x}, {box_str_point_one.y})"
-                    text_coord2 = f"Coord 2: ({box_str_point_two.x}, {box_str_point_two.y})"
-                    text_coord3 = f"Coord 3: ({box_str_point_three.x}, {box_str_point_three.y})"
-                    text_coord4 = f"Coord 4: ({box_str_point_four.x}, {box_str_point_four.y})"
-
-
-                    # Define the color and size of the dot
-                    radius = 5           # Radius of the dot
-                    thickness = -1       # Thickness -1 fills the circle, creating a dot
-
-                    #SHOWING DOTS
-                    cv2.circle(debug_image, (int(box_str_point_one.x), int(box_str_point_one.y)), radius, (255, 0, 0), thickness) # bottom left
-                    cv2.circle(debug_image, (int(box_str_point_two.x), int(box_str_point_two.y)), radius, (0, 0, 0), thickness) # bottom right
-                    cv2.circle(debug_image, (int(box_str_point_three.x), int(box_str_point_three.y)), radius, (0, 255, 0), thickness) # top right
-                    cv2.circle(debug_image, (int(box_str_point_four.x), int(box_str_point_four.y)), radius, (0, 0, 255), thickness) # top left
-                    string_coord_list.append(box_str_point_one)
-                    string_coord_list.append(box_str_point_two)
-                    string_coord_list.append(box_str_point_three)
-                    string_coord_list.append(box_str_point_four)
-                    # Define bottom left corners for each text line
-                    bottom_left_corner_text_one = (debug_image.shape[1] - 370, 35 * 6 + 20)  # Adjusted to move higher
-                    bottom_left_corner_coord1 = (debug_image.shape[1] - 370, 35 * 7 + 15)   # Adjusted to move higher
-                    bottom_left_corner_coord2 = (debug_image.shape[1] - 370, 35 * 8 + 10)    # Adjusted to move higher
-                    bottom_left_corner_coord3 = (debug_image.shape[1] - 370, 35 * 9 + 5)    # Adjusted to move higher
-                    bottom_left_corner_coord4 = (debug_image.shape[1] - 370, 35 * 10 + 0)    # Adjusted to move higher
-                    # Put text on image for box one
-                    cv2.putText(debug_image, text_one, bottom_left_corner_text_one, cv2.FONT_HERSHEY_SIMPLEX, .8, (167, 52, 53), 2)
-                    cv2.putText(debug_image, text_coord1, bottom_left_corner_coord1, cv2.FONT_HERSHEY_SIMPLEX, .8, (167, 52, 53), 2)
-                    cv2.putText(debug_image, text_coord2, bottom_left_corner_coord2, cv2.FONT_HERSHEY_SIMPLEX, .8, (167, 52, 53), 2)
-                    cv2.putText(debug_image, text_coord3, bottom_left_corner_coord3, cv2.FONT_HERSHEY_SIMPLEX, .8, (167, 52, 53), 2)
-                    cv2.putText(debug_image, text_coord4, bottom_left_corner_coord4, cv2.FONT_HERSHEY_SIMPLEX, .8, (167, 52, 53), 2)
-            
-                    # CALCULATING P1
-                    #pointOne = Point2D.find_point_p1(leftCoordOne, rightCoordTwo, ratio=0.7)
-
-
-                if len(result.obb.xyxyxyxy) >= 2:
-                    coord_box_two = result.obb.xyxyxyxy[1]
-                    round_coord_box_two = torch.round(coord_box_two)
-
-                    box_bow_coordinate_1 = round_coord_box_two[0]  # First coordinate (x1, y1)
-                    box_bow_coordinate_2 = round_coord_box_two[1]  # Second coordinate (x2, y2)
-                    box_bow_coordinate_3 = round_coord_box_two[2]  # Third coordinate (x3, y3)
-                    box_bow_coordinate_4 = round_coord_box_two[3]  # Fourth coordinate (x4, y4)
-
-                    # Define the color and size of the dot
-                    radius = 5           # Radius of the dot
-                    thickness = -1       # Thickness -1 fills the circle, creating a dot
-                    # Add the dot to the image at the specified coordinates
-                    box_bow_coord_one = Point2D(box_bow_coordinate_1[0].item(), box_bow_coordinate_1[1].item())
-                    box_bow_coord_two = Point2D(box_bow_coordinate_2[0].item(), box_bow_coordinate_2[1].item())
-                    box_bow_coord_three = Point2D(box_bow_coordinate_3[0].item(), box_bow_coordinate_3[1].item())
-                    box_bow_coord_four = Point2D(box_bow_coordinate_4[0].item(), box_bow_coordinate_4[1].item())
-                    # SHOWING DOTS
-                    cv2.circle(debug_image, (int(box_bow_coord_one.x), int(box_bow_coord_one.y)), radius, (73, 34, 124), thickness) # top-left
-                    cv2.circle(debug_image, (int(box_bow_coord_two.x), int(box_bow_coord_two.y)), radius, (73, 34, 124), thickness) # bottom - left
-                    cv2.circle(debug_image, (int(box_bow_coord_three.x), int(box_bow_coord_three.y)), radius, (73, 34, 124), thickness) # bottom - right
-                    cv2.circle(debug_image, (int(box_bow_coord_four.x), int(box_bow_coord_four.y)), radius, (73, 34, 124), thickness) # top - right
-
-                    bow_coord_list.append(box_bow_coord_one)
-                    bow_coord_list.append(box_bow_coord_two)
-                    bow_coord_list.append(box_bow_coord_three)
-                    bow_coord_list.append(box_bow_coord_four)
-
-                    # Prepare text for box one
-                    text_coord1 = f"Coord 1: ({box_bow_coord_one.x}, {box_bow_coord_one.y})"
-                    text_coord2 = f"Coord 2: ({box_bow_coord_two.x}, {box_bow_coord_two.y})"
-                    text_coord3 = f"Coord 3: ({box_bow_coord_three.x}, {box_bow_coord_three.y})"
-                    text_coord4 = f"Coord 4: ({box_bow_coord_four.x}, {box_bow_coord_four.y})"
-
-                    text_offset = 35  # increased spacing between lines
-                    top_right_corner_text_two = (debug_image.shape[1] - 370, text_offset + 20) # Adjusted to move down and left
-                    top_right_corner_coord1_2 = (debug_image.shape[1] - 370, text_offset * 2 + 15) # Adjusted to move down and left
-                    top_right_corner_coord2_2 = (debug_image.shape[1] - 370, text_offset * 3 + 10) # Adjusted to move down and left
-                    top_right_corner_coord3_2 = (debug_image.shape[1] - 370, text_offset * 4 + 5) # Adjusted to move down and left
-                    top_right_corner_coord4_2 = (debug_image.shape[1] - 370, text_offset * 5 + 0) # Adjusted to move down and left
-
-                    # Put text on image for box two
-                    text_two = "Bow OBB Coords:"
-                    cv2.putText(debug_image, text_two, top_right_corner_text_two, cv2.FONT_HERSHEY_SIMPLEX, .8, (255, 255, 255), 2)  # Reduced font size, previous color (73, 34, 124)
-                    cv2.putText(debug_image, text_coord1, top_right_corner_coord1_2, cv2.FONT_HERSHEY_SIMPLEX, .8, (255, 255, 255), 2)  # Reduced font size
-                    cv2.putText(debug_image, text_coord2, top_right_corner_coord2_2, cv2.FONT_HERSHEY_SIMPLEX, .8, (255, 255, 255), 2)  # Reduced font size
-                    cv2.putText(debug_image, text_coord3, top_right_corner_coord3_2, cv2.FONT_HERSHEY_SIMPLEX, .8, (255, 255, 255), 2)  # Reduced font size
-                    cv2.putText(debug_image, text_coord4, top_right_corner_coord4_2, cv2.FONT_HERSHEY_SIMPLEX, .8, (255, 255, 255), 2)  # Reduced font size
-
-                    # Detect if bow too high or low
-                    bow_too_high = (debug_image.shape[1] - 370, text_offset * 11 + 0) # Adjusted to move down and left
-                    if(len(bow_coord_list) == 4 and len(string_coord_list) == 4):
-            
-                        P1 = Point2D.find_point_p1(bow_coord_list[0], bow_coord_list[1]) # left mid point
-                        P2 = Point2D.find_point_p1(bow_coord_list[2], bow_coord_list[3]) # right mid point
-                        int1 = Point2D.find_intersection(P1,P2,box_str_point_one,box_str_point_three)
-                        int2 = Point2D.find_intersection(P1,P2,box_str_point_two,box_str_point_four)
-                        if Point2D.is_above_or_below(int1, box_str_point_three, box_str_point_four) or Point2D.is_above_or_below(int2, box_str_point_three, box_str_point_four):
-                            cv2.putText(debug_image, "Bow Too High", bow_too_high, cv2.FONT_HERSHEY_SIMPLEX, .8, (255, 0, 0), 4)  # Reduced font size
-                        else:
-                            cv2.putText(debug_image, "Bow Correctly placed", bow_too_high, cv2.FONT_HERSHEY_SIMPLEX, .8, (0, 255, 0), 4)  # Reduced font size
-                        # Evaluate correctness of bow angle based on how perpendicular bow is to fingerboard
-                        angle = Point2D.angle_between_lines(bow_coord_list[0], bow_coord_list[1], box_str_point_three, box_str_point_four)
-                        deblur_angle = angle + 90
-                        if angle > 75 and angle < 105:
-                            cv2.putText(debug_image, "Bow Angle Correct", bow_angle, cv2.FONT_HERSHEY_SIMPLEX, .8, (0, 255, 0), 4)  # Reduced font size
-                        else:
-                            cv2.putText(debug_image, "Bow Not Perpendicular to Fingerboard", bow_angle, cv2.FONT_HERSHEY_SIMPLEX, .8, (255, 0, 0), 4)  # Reduced font size
-            
-            detections = sv.Detections.from_ultralytics(YOLOresults[0])
-            '''
-            image_height, image_width, _ = image.shape
-            
-            # Draw hand landmarks
-            if results.multi_hand_landmarks and pose_results.pose_landmarks:
-
-                for hand_landmarks, handedness in zip(results.multi_hand_landmarks, results.multi_handedness):
-                    for ids, landmrk in enumerate(hand_landmarks.landmark):
-                        cx, cy = landmrk.x * image_width, landmrk.y * image_height
-                        Hands.store_finger_node_coords(ids, cx, cy, finger_coords)
-                    
-                    # Check if the hand is the bow hand
-                    if handedness.classification[0].label == 'Right':
-                        # Bounding box calculation
-                        brect = Hands.calc_bounding_rect(debug_image, hand_landmarks)
-
-                        # x1, y1, x2, y2 = brect
-                        # hand_region = debug_image[y1:y2, x1:x2]
-
-                        #Hands.process_hand_region(debug_image, hand_region, deblur_angle, x1, y1, x2, y2, False, False)
-
-                        # Landmark calculation
-                        landmark_list = Hands.calc_landmark_list(image, hand_landmarks)
-
-                        # Conversion to relative coordinates / normalized coordinates
-                        pre_processed_landmark_list = Hands.pre_process_landmark(landmark_list)
-
-                         # Write to the dataset file
-                        Hands.logging_csv(number, mode, pre_processed_landmark_list, handedness, frame_count)
-
-                        # Hand sign classification
+                    # Hand sign classification
+                    if landmarks_are_bad:
+                        predicted_label = get_recent_valid_classification()
+                        print(f"Frame {frame_count}: Bad landmarks detected, using recent classification: {predicted_label}")
+                        cv2.putText(debug_image, f"Bad Landmarks - Using Recent: {predicted_label}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+                    else:
                         hand_sign_id = keypoint_classifier(pre_processed_landmark_list)
-
                         predicted_label = keypoint_classifier_labels[hand_sign_id]
+                        recent_classifications.append(predicted_label)
+                        if len(recent_classifications) > classification_buffer_size:
+                            recent_classifications.pop(0)
 
-                        # Ground Truth (Hard coded to "Supination")
-                        ground_truth_label = "Normal"
+                    ground_truth_label = "Normal"
+                    classification_results.append({
+                        "frame": frame_count, "predicted": predicted_label, "ground_truth": ground_truth_label,
+                        "landmarks_bad": landmarks_are_bad, "pose_landmarks_bad": locals().get('pose_landmarks_are_bad', False),
+                        "posture": locals().get('posture', 'Not detected')
+                    })
+                    print("Frame:", frame_count, "predicted:", predicted_label, "ground truth:", ground_truth_label, "bad landmarks:", landmarks_are_bad, "bad pose:", locals().get('pose_landmarks_are_bad', False))
 
-                        # Store classification results
-                        classification_results.append({
-                            "frame": frame_count,
-                            "predicted": predicted_label,
-                            "ground_truth": ground_truth_label,
-                        })
-
-                        print("Frame:", frame_count, "predicted:", predicted_label, "ground truth:", ground_truth_label)
-
-                        # Draw hands
-                        debug_image = Hands.draw_bounding_rect(True, debug_image, brect)
-                        debug_image = Hands.draw_landmarks(debug_image, landmark_list)
-                        debug_image = Hands.draw_info_text(
-                            debug_image,
-                            brect,
-                            handedness,
-                            keypoint_classifier_labels[hand_sign_id]
-                        )
-                        # Get pose landmarks
-                        pose_landmarks = pose_results.pose_landmarks.landmark
-
-                        shoulder = pose_landmarks[12]  #right shoulder
-                        elbow = pose_landmarks[14]    # right elbow
-                        hand = pose_landmarks[16]     # right wrist
-    
-                        # check if the hand node is near the target coordinate
-                        hand_distance = np.sqrt((hand.x - target_x)**2 + (hand.y - target_y)**2)
-                        if hand_distance <= proximity_threshold:
-                            # reference ratio (need to look at a bunch of videos to determine this number)
-                            reference_ratio = 1.2  #dummy value for now
-
-                            # classify
-                            posture = classify_elbow_posture(
-                                shoulder,
-                                elbow,
-                                hand,
-                                reference_ratio,
-                                threshold = 0.1  # buffer
-                            )
-
-                            #draw on image
-                            text_position = (debug_image.shape[1] - 300, debug_image.shape[0] - 20)  
-                            cv2.putText(
-                                debug_image,
-                                f"Posture: {posture}",
-                                text_position,
-                                cv2.FONT_HERSHEY_SIMPLEX,
-                                0.8, 
-                                (255, 255, 255), 
-                                2, 
-                                cv2.LINE_AA
-                            )
-                    # Draw pose
-                    if pose_results.pose_landmarks:
-                        landmark_subset = landmark_pb2.NormalizedLandmarkList(landmark=pose_results.pose_landmarks.landmark[11:15])
-
-                    # circles settings
-                    mp_drawing.draw_landmarks(
-                        debug_image,
-                        landmark_subset,
-                        None,
-                        mp_drawing.DrawingSpec(color=(255, 255, 255), thickness=10, circle_radius=6)
-                    )
-                    mp_drawing.draw_landmarks(
-                        debug_image,
-                        landmark_subset,
-                        None,
-                        mp_drawing.DrawingSpec(color=(0, 0, 0), thickness=2, circle_radius=10)
-                    )
+                    # Draw hands and info
+                    debug_image = Hands.draw_bounding_rect(True, debug_image, brect)
+                    mp_drawing.draw_landmarks(debug_image, hand_landmarks, mp_hands.HAND_CONNECTIONS, mp_drawing_styles.get_default_hand_landmarks_style(), mp_drawing_styles.get_default_hand_connections_style())
+                    debug_image = Hands.draw_info_text(debug_image, brect, handedness, predicted_label)
                     
+                    # Get pose landmarks for elbow posture
+                    pose_landmarks = pose_results.pose_landmarks.landmark
+                    shoulder, elbow, hand = pose_landmarks[12], pose_landmarks[14], pose_landmarks[16]
+                    
+                    hand_distance = np.sqrt((hand.x - target_x)**2 + (hand.y - target_y)**2)
+                    if hand_distance <= proximity_threshold:
+                        pose_landmarks_are_bad = detect_bad_pose_landmarks(shoulder, elbow, hand)
+                        reference_ratio = 1.2
+                        if pose_landmarks_are_bad:
+                            posture = get_recent_valid_posture()
+                            print(f"Frame {frame_count}: Bad pose landmarks detected, using recent posture: {posture}")
+                            cv2.putText(debug_image, f"Bad Pose - Using Recent: {posture}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 165, 0), 2)
+                        else:
+                            posture = classify_elbow_posture(shoulder, elbow, hand, reference_ratio, threshold=0.1)
+                            recent_postures.append(posture)
+                            if len(recent_postures) > posture_buffer_size:
+                                recent_postures.pop(0)
 
-            # end if
+                        text_position = (debug_image.shape[1] - 300, debug_image.shape[0] - 20)
+                        cv2.putText(debug_image, f"Posture: {posture}", text_position, cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2, cv2.LINE_AA)
+                        
+                        pose_quality_text = "Pose: Valid" if not pose_landmarks_are_bad else "Pose: Invalid"
+                        pose_quality_color = (0, 255, 0) if not pose_landmarks_are_bad else (255, 165, 0)
+                        cv2.putText(debug_image, pose_quality_text, (debug_image.shape[1] - 300, debug_image.shape[0] - 50), cv2.FONT_HERSHEY_SIMPLEX, 0.6, pose_quality_color, 2)
 
-            # draw bounding boxes
-            oriented_box_annotator = sv.OrientedBoxAnnotator()
-            
-            # oriented_box_annotator.annotate(scene=debug_image,detections=detections)
+                # Draw pose subset
+                if pose_results.pose_landmarks:
+                    landmark_subset = landmark_pb2.NormalizedLandmarkList(landmark=pose_results.pose_landmarks.landmark[11:15])
+                    mp_drawing.draw_landmarks(debug_image, landmark_subset, None, mp_drawing.DrawingSpec(color=(255, 255, 255), thickness=10, circle_radius=6))
+                    mp_drawing.draw_landmarks(debug_image, landmark_subset, None, mp_drawing.DrawingSpec(color=(0, 0, 0), thickness=2, circle_radius=10))
 
-            #debug_image.flags.writeable = True
-            # debug_image = cv2.cvtColor(debug_image, cv2.COLOR_RGB2BGR)
+        # --- Final Drawing and Display ---
+        debug_image = Hands.ResizeWithAspectRatio(debug_image, height=800)
+        debug_image = cv2.putText(debug_image, "Frame {}".format(frame_count), (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 4, cv2.LINE_AA)
+        cv2.putText(debug_image, "Frame {}".format(frame_count), (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2, cv2.LINE_AA)
 
-            debug_image = Hands.ResizeWithAspectRatio(debug_image, height=800)
-            debug_image = cv2.putText(debug_image, "Frame {}".format(frame_count), (10, 70), cv2.FONT_HERSHEY_SIMPLEX,
-                 1, (0, 0, 0), 4, cv2.LINE_AA)
-            
-            cv2.putText(debug_image, "Frame {}".format(frame_count), (10, 70), cv2.FONT_HERSHEY_SIMPLEX,
-               1.0, (255, 255, 255), 2, cv2.LINE_AA)
+        resized_frame = cv2.resize(debug_image, (output_frame_length, output_frame_width))
+        debug_image = Hands.draw_info(debug_image, fps, mode, number)
+        writer.write(resized_frame)
+        cv2.imshow('MediaPipe Hands', debug_image)
 
-            # Resize to specified output dimensions before writing
-            resized_frame = cv2.resize(debug_image, (output_frame_length, output_frame_width))
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
 
-            debug_image = Hands.draw_info(debug_image, fps, mode, number)
-
-            writer.write(resized_frame)
-
-            cv2.imshow('MediaPipe Hands', debug_image)
-
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
-
-        cap.release()
-        writer.release()
-        cv2.destroyAllWindows()
+    hands.close()
+    pose.close()
+    
+    cap.release()
+    writer.release()
+    cv2.destroyAllWindows()
+    
+    # --- Final Performance Evaluation ---
+    if classification_results:
+        Hands.evaluate_performance(classification_results)
+        total_frames = len(classification_results)
+        bad_landmark_frames = sum(1 for result in classification_results if result.get('landmarks_bad', False))
+        bad_pose_frames = sum(1 for result in classification_results if result.get('pose_landmarks_bad', False))
         
-        # print("Classification Results:", classification_results)
-        if classification_results:
-            Hands.evaluate_performance(classification_results)
-        else:
-            print("No classification results available.")
-
-
+        print(f"\nLandmark Quality Analysis:")
+        print(f"Total frames: {total_frames}")
+        print(f"Frames with bad hand landmarks: {bad_landmark_frames}")
+        print(f"Frames with bad pose landmarks: {bad_pose_frames}")
+        print(f"Hand landmark quality: {((total_frames - bad_landmark_frames) / total_frames * 100):.1f}%")
+        print(f"Pose landmark quality: {((total_frames - bad_pose_frames) / total_frames * 100):.1f}%")
+        
+        bad_hand_frames = [result['frame'] for result in classification_results if result.get('landmarks_bad', False)]
+        bad_pose_frames_list = [result['frame'] for result in classification_results if result.get('pose_landmarks_bad', False)]
+        
+        if bad_hand_frames:
+            print(f"Frames with bad hand landmarks: {bad_hand_frames}")
+        if bad_pose_frames_list:
+            print(f"Frames with bad pose landmarks: {bad_pose_frames_list}")
+            
+        postures = [result.get('posture', 'Not detected') for result in classification_results if result.get('posture') != 'Not detected']
+        if postures:
+            posture_counts = {}
+            for p in postures:
+                posture_counts[p] = posture_counts.get(p, 0) + 1
+            print(f"\nPosture Analysis:")
+            for p, count in posture_counts.items():
+                print(f"{p}: {count} frames ({count/len(postures)*100:.1f}%)")
+    else:
+        print("No classification results available.")
 
 if __name__ == "__main__":
     main()
