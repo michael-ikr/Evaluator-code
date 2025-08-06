@@ -777,7 +777,7 @@ def main():
 
     mode = 0
 
-    #helper functions I created
+    #helper functions I added
     def detect_bad_landmarks(landmark_list):
         if not landmark_list or len(landmark_list) < 21:
             return True
@@ -970,7 +970,6 @@ def main():
                     mp_drawing.draw_landmarks(debug_image, landmark_subset, None, mp_drawing.DrawingSpec(color=(255, 255, 255), thickness=10, circle_radius=6))
                     mp_drawing.draw_landmarks(debug_image, landmark_subset, None, mp_drawing.DrawingSpec(color=(0, 0, 0), thickness=2, circle_radius=10))
 
-        # --- Final Drawing and Display ---
         debug_image = Hands.ResizeWithAspectRatio(debug_image, height=800)
         debug_image = cv2.putText(debug_image, "Frame {}".format(frame_count), (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 4, cv2.LINE_AA)
         cv2.putText(debug_image, "Frame {}".format(frame_count), (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2, cv2.LINE_AA)
@@ -990,7 +989,6 @@ def main():
     writer.release()
     cv2.destroyAllWindows()
     
-    # --- Final Performance Evaluation ---
     if classification_results:
         Hands.evaluate_performance(classification_results)
         total_frames = len(classification_results)
